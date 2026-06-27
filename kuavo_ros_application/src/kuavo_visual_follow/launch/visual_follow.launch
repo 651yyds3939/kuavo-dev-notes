@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<launch>
+    <node pkg="kuavo_visual_follow" type="yolo_person_tracker.py" name="yolo_person_detector" output="screen" />
+
+    <node pkg="kuavo_visual_follow" type="body_track.py" name="head_tracking_controller" output="screen" />
+</launch>

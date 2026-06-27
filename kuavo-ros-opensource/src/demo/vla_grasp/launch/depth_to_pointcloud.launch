@@ -1,0 +1,27 @@
+<!--
+  深度图 → 点云（当相机 launch 未开 enable_pointcloud 时使用）
+
+  现象：rostopic list 能看到 /camera/depth/color/points，但 rostopic hz 显示 no new messages
+        同时 /camera/depth/image_raw 有 ~20Hz
+
+  上位机新开终端：
+    source ~/kuavo_ros_application/devel/setup.bash
+    roslaunch /home/lab/kuavo-ros-opensource/src/demo/vla_grasp/launch/depth_to_pointcloud.launch
+
+  验证：
+    rostopic hz /camera/depth/color/points
+-->
+<launch>
+  <arg name="depth_topic" default="/camera/depth/image_raw" />
+  <arg name="depth_info" default="/camera/depth/camera_info" />
+  <arg name="points_topic" default="/camera/depth/color/points" />
+
+  <node pkg="nodelet" type="nodelet" name="vla_pc_manager" args="manager" output="screen" />
+
+  <node pkg="nodelet" type="nodelet" name="vla_depth_to_pointcloud" output="screen"
+        args="load depth_image_proc/point_cloud_xyz vla_pc_manager --no-bond">
+    <remap from="image_rect" to="$(arg depth_topic)" />
+    <remap from="camera_info" to="$(arg depth_info)" />
+    <remap from="points" to="$(arg points_topic)" />
+  </node>
+</launch>

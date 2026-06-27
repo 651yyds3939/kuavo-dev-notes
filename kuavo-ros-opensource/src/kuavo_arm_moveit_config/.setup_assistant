@@ -1,0 +1,11 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: biped_s49
+    relative_path: urdf/biped_s49.urdf
+    xacro_args: ""
+  SRDF:
+    relative_path: config/biped_s49.srdf
+  CONFIG:
+    author_name: lab
+    author_email: 123@qq.com
+    generated_timestamp: 1781424398

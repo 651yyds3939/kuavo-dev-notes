@@ -1,0 +1,349 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+@Project : Kuavo Embodied AI - Ultimate Synced System (Fixed)
+@File    : orin_ultimate_vision_tracker.py
+@Desc    : 夸父人形机器人终极“边跟边聊”主控大脑（已完美修复 ROS 节点初始化时钟问题）
+@Security: 🛡️ 本节点内集成了重度 C++ 矩阵计算(InsightFace)，运行前绝对严禁挂载 proxychains4 代理装甲！
+"""
+
+import rospy
+import cv2
+import numpy as np
+import torch
+import torchvision
+import json
+import base64
+import socket
+import time
+import threading
+import os
+import glob
+from sensor_msgs.msg import Image
+from geometry_msgs.msg import Twist
+from cv_bridge import CvBridge
+
+try:
+    from kuavo_msgs.msg import robotHeadMotionData
+except ImportError:
+    rospy.logerr("❌ 找不到 kuavo_msgs 消息体，请确保执行了 source devel/setup.bash ！")
+    exit(1)
+
+from ultralytics import YOLO
+from insightface.app import FaceAnalysis
+
+# =========================================================================
+# 🛡️ 工业级 Bug 物理防御装甲：纯 Torch 矩阵 NMS 猴子补丁
+# 彻底根除 Jetson 平台 torchvision custom C++ ops 无法加载导致的运行时崩溃
+# =========================================================================
+def pure_torch_nms(boxes, scores, iou_threshold):
+    if boxes.numel() == 0: 
+        return torch.empty((0,), dtype=torch.int64, device=boxes.device)
+    x1, y1, x2, y2 = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
+    areas = (x2 - x1) * (y2 - y1)
+    order = scores.argsort(descending=True)
+    keep = []
+    while order.numel() > 0:
+        i = order[0]
+        keep.append(i.item())
+        if order.numel() == 1: 
+            break
+        xx1, yy1 = torch.max(x1[i], x1[order[1:]]), torch.max(y1[i], y1[order[1:]])
+        xx2, yy2 = torch.min(x2[i], x2[order[1:]]), torch.min(y2[i], y2[order[1:]])
+        w, h = torch.clamp(xx2 - xx1, min=0.0), torch.clamp(yy2 - yy1, min=0.0)
+        inter = w * h
+        ovr = inter / (areas[i] + areas[order[1:]] - inter)
+        ids = torch.where(ovr <= iou_threshold)[0]
+        order = order[ids + 1]
+    return torch.tensor(keep, dtype=torch.int64, device=boxes.device)
+
+# 👑 劫持官方接口：将其重定向到我们的 GPU 闭环内计算算子，让底层 C++ 报错直接失效
+torchvision.ops.nms = pure_torch_nms
+# =========================================================================
+
+
+class UltimateVisionTracker:
+    def __init__(self):
+        # 👑 【核心修复】注册系统 ROS 节点，匿名防止重名，必须作为第一优先级点火！
+        rospy.init_node('ultimate_vision_tracker_node', anonymous=True)
+        self.bridge = CvBridge()
+        
+        # ========================================================
+        # 👑 【安全锁】动作使能物理开关（参数服务器控制）
+        # 纯头动模式：启动传参 _param _movement_enabled:=false
+        # 头身跟随模式：启动传参 _param _movement_enabled:=true
+        # ========================================================
+        self.movement_enabled = rospy.get_param('~movement_enabled', False)
+
+        # 1. 线程间共享内存池
+        self.latest_frame = None          # ROS 高频原生图像缓存
+        self.cognitive_frame = None       # 后台认知线程专用的深拷贝画面
+        self.tracked_bbox = None          # 当前高频主目标 YOLO 的包围盒坐标 [x1, y1, x2, y2]
+        self.data_lock = threading.Lock() # 用于保护跨线程共享变量的原子操作锁
+
+        # 2. UDP 空投网关初始化（死锁本地 7000 端口）
+        self.udp_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.gateway_addr = ("127.0.0.1", 7000)
+
+        # 3. 核心物理运动控制参数库（融合自旧版 body_track.py）
+        self.center_x = 640.0         # 1280x800 分辨率绝对中心
+        self.center_y = 400.0         
+        self.kp_yaw = 0.01            # 头部偏航 P 增益
+        self.kp_pitch = -0.01         # 头部俯仰 P 增益 (负数用于空间系旋转反转)
+        self.kp_body_yaw = 0.01       # 底盘协同跟随 P 系数
+        self.body_deadzone = 15.0     # 头身协同惰性死区阈值（度）
+        self.max_angular_z = 0.2      # 底盘最大原地转圈限幅保护阀 (rad/s)
+        
+        self.current_head_yaw = 0.0   # 全局维护的云台状态机期望值
+        self.current_head_pitch = 0.0
+
+        # 👑 夸父实机三维物理极值配平库（固化 trim_test 探测出的真理零点）
+        self.trim_linear_x = -0.008   # 抵消由于背包配重前倾引发的纵向冲锋漂移
+        self.trim_linear_y = 0.001    # 抵消由于机械关节公差引发的向右侧滑漂移
+        self.trim_angular_z = -0.002  # 抵消胸腔 IMU 航向角零位温漂产生的左旋自转
+
+        # 4. 视觉认知状态机内存定义（融合自旧版 observer.py）
+        self.last_seen_person = None
+        self.person_leave_time = 0.0
+        self.face_similarity_threshold = 0.35 # 黄金余弦相似度切分线
+
+        # 5. 注册 ROS 发布者与高速订阅通道
+        self.head_pub = rospy.Publisher('/robot_head_motion_data', robotHeadMotionData, queue_size=10)
+        self.cmd_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+        rospy.Subscriber('/camera/color/image_raw', Image, self.image_callback)
+
+        # 6. 多神经网络引擎物理冷启动
+        print("\n" + "="*60)
+        print(" 🤖 夸父终极头身协同多模态视觉跟随大脑点火中...")
+        print("="*60)
+        
+        # 引擎 A：YOLOv8 强制钉死在本地第一显卡(CUDA)上执行高频推理
+        print(" -> [GPU] 正在加载 YOLOv8 极限实时追踪器...")
+        self.yolo_model = YOLO('yolov8n.pt').to('cuda')
+        
+        # 引擎 B：InsightFace 强制剥离降维到 CPU 标量寄存器，打通显存保城河
+        print(" -> [CPU] 正在构建 InsightFace 特征空间比对雷达...")
+        self.face_app = FaceAnalysis(name="buffalo_l", root="~/.insightface", providers=['CPUExecutionProvider'])
+        self.face_app.prepare(ctx_id=-1, det_size=(640, 640))
+        
+        # 自动扫描挂载本地特征图片熟人库
+        self.known_faces = {}
+        self.faces_dir = os.path.join(os.path.dirname(__file__), "faces")
+        if os.path.exists(self.faces_dir):
+            for img_path in glob.glob(os.path.join(self.faces_dir, "*.*")):
+                name = os.path.splitext(os.path.basename(img_path))[0]
+                img = cv2.imread(img_path)
+                if img is not None:
+                    faces_in_img = self.face_app.get(img)
+                    if faces_in_img:
+                        self.known_faces[name] = faces_in_img[0].embedding
+        print(f" ✅ 成功激活本地熟人特征白名单: {list(self.known_faces.keys())}")
+        print("="*60 + "\n")
+
+        # 7. 并发拉起常驻后台的 1Hz 认知异步守护线程
+        cognitive_thread = threading.Thread(target=self.cognitive_loop_worker)
+        cognitive_thread.daemon = True
+        cognitive_thread.start()
+
+    def image_callback(self, msg):
+        """ROS 高频图传中断回调：只做零延迟覆盖，严禁在内部执行长矩阵计算"""
+        try:
+            self.latest_frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+        except Exception:
+            pass
+
+    def publish_trim_velocity(self):
+        """无人空窗期或安全锁死阶段的底盘心跳保活配平函数"""
+        msg = Twist()
+        msg.linear.x = self.trim_linear_x
+        msg.linear.y = self.trim_linear_y
+        msg.angular.z = self.trim_angular_z
+        self.cmd_pub.publish(msg)
+
+    def calculate_base_angular_z(self):
+        """阶梯状次级身体旋转代偿算法"""
+        if self.current_head_yaw > self.body_deadzone:
+            return (self.current_head_yaw - self.body_deadzone) * self.kp_body_yaw
+        elif self.current_head_yaw < -self.body_deadzone:
+            return (self.current_head_yaw + self.body_deadzone) * self.kp_body_yaw
+        return 0.0
+
+    def control_loop_20hz(self):
+        """⚡ 主线程高频循环：接管机器人反射弧，专职 20Hz 黄金高频运动跟随"""
+        rate = rospy.Rate(20)
+        while not rospy.is_shutdown():
+            # 动态更新安全锁布尔状态
+            self.movement_enabled = rospy.get_param('~movement_enabled', False)
+
+            if self.latest_frame is None:
+                rate.sleep()
+                continue
+            
+            # 1. 截取当前图像快照进行 YOLO 检测
+            frame_copy = self.latest_frame.copy()
+            results = self.yolo_model(frame_copy, imgsz=640, verbose=False)
+            
+            boxes = results[0].boxes.xyxy.cpu().numpy()
+            class_ids = results[0].boxes.cls.cpu().numpy().astype(int)
+            scores = results[0].boxes.conf.cpu().numpy()
+
+            human_boxes = []
+            for box, class_id, score in zip(boxes, class_ids, scores):
+                # 严控假阳性：死锁 class_id == 0 (person)，且置信度必须大于 60%
+                if class_id == 0 and score > 0.60:
+                    human_boxes.append(box)
+
+            # 场景 A：当前视野范围内彻底无人
+            if len(human_boxes) == 0:
+                with self.data_lock:
+                    self.tracked_bbox = None
+                    self.cognitive_frame = None
+                if self.movement_enabled:
+                    self.publish_trim_velocity()
+                rate.sleep()
+                continue
+
+            # 场景 B：出现人类，通过面积最大法暴力锁定主交互目标
+            main_human_box = max(human_boxes, key=lambda b: (b[2] - b[0]) * (b[3] - b[1]))
+            x1, y1, x2, y2 = map(int, main_human_box)
+
+            # 向后台低频认知线程高强度输送新鲜生产素材（加线程锁确保互斥）
+            with self.data_lock:
+                self.tracked_bbox = (x1, y1, x2, y2)
+                self.cognitive_frame = frame_copy
+
+            # 2. 空间坐标系 P 反馈运动控制计算
+            target_pixel_x = (x1 + x2) / 2.0
+            target_pixel_y = (y1 + y2) / 2.0
+            error_x = target_pixel_x - self.center_x
+            error_y = target_pixel_y - self.center_y
+
+            # ----------------- 头部关节运动学发布 -----------------
+            # 注入 30 像素物理死区，根治相机像素高频回归抖动导致的“滋滋”啸叫
+            if abs(error_x) >= 30:
+                self.current_head_yaw += error_x * self.kp_yaw
+            if abs(error_y) >= 30:
+                self.current_head_pitch += error_y * self.kp_pitch
+
+            # 极端机械防撞软限幅截断
+            self.current_head_yaw = max(-30.0, min(30.0, self.current_head_yaw))
+            self.current_head_pitch = max(-25.0, min(25.0, self.current_head_pitch))
+
+            head_msg = robotHeadMotionData()
+            head_msg.joint_data = [self.current_head_yaw, self.current_head_pitch]
+            self.head_pub.publish(head_msg)
+
+            # ----------------- 底盘动力学协同速度发布 -----------------
+            if self.movement_enabled:
+                cmd_msg = Twist()
+                cmd_msg.linear.x = self.trim_linear_x
+                cmd_msg.linear.y = self.trim_linear_y
+                
+                # 身体代偿角速度 = 次级触发速度基数 + 旋转零点配平值
+                raw_angular_z = self.calculate_base_angular_z() + self.trim_angular_z
+                # 限制最大旋转速度，保障大模型全双工对话过程中机器人旋转极其柔和稳定
+                cmd_msg.angular.z = max(-self.max_angular_z, min(self.max_angular_z, raw_angular_z))
+                
+                self.cmd_pub.publish(cmd_msg)
+
+            rate.sleep()
+
+    def cognitive_loop_worker(self):
+        """🧠 后台异步守护线程：降频至 1Hz，专职低频大消耗的面部 Embedding 运算与状态机空投"""
+        while not rospy.is_shutdown():
+            time.sleep(1.0) # 强制降频，将珍贵的多核 CPU 算力槽完美留给机器人底层控制算法
+            
+            # 提取主线程生产的画面快照与坐标
+            with self.data_lock:
+                local_frame = self.cognitive_frame
+                local_bbox = self.tracked_bbox
+
+            # 状态机分流 1：主线程传回的视野内彻底无人或找不到主交互者
+            if local_frame is None or local_bbox is None:
+                self.handle_person_absence_fsm()
+                continue
+
+            # 状态机分流 2：人脸 ROI 精准裁剪，实施高维认知点积
+            x1, y1, x2, y2 = local_bbox
+            h, w, _ = local_frame.shape
+            
+            # 边界安全防御性收缩，杜绝 YOLO 边界框越出原始图像矩阵
+            x1_safe = max(0, x1 - 20)
+            y1_safe = max(0, y1 - 20)
+            x2_safe = min(w, x2 + 20)
+            y2_safe = min(h, y2 + 20)
+
+            # 暴力切片提取感兴趣区域（ROI），将整图扫描开销暴砍 70%
+            roi_frame = local_frame[y1_safe:y2_safe, x1_safe:x2_safe]
+            if roi_frame.size == 0:
+                self.handle_person_absence_fsm()
+                continue
+
+            # 扔进 CPU 算子库捕获面里面部高维数组
+            faces = self.face_app.get(roi_frame)
+            if not faces:
+                self.handle_person_absence_fsm()
+                continue
+
+            # 提取 ROI 区域中面积最大的人脸
+            main_face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
+            target_emb = main_face.embedding
+
+            best_match = "陌生人"
+            max_sim = self.face_similarity_threshold
+
+            # 计算高维空间余弦相似度
+            for name, emb in self.known_faces.items():
+                sim = np.dot(target_emb, emb) / (np.linalg.norm(target_emb) * np.linalg.norm(emb))
+                if sim > max_sim:
+                    max_sim = sim
+                    best_match = name
+
+            # 重置离开倒计时时间戳（当前时刻有稳定人脸面孔驻留）
+            self.person_leave_time = 0.0
+
+            # 🚥 核心状态机跃迁边缘触发检测（只有身份发生翻转，才准许放行扣动 UDP 扳机）
+            if best_match != self.last_seen_person:
+                print(f"\n🚨 [融合中枢视觉扳机] 目标发生跃迁! 旧状态:【{self.last_seen_person}】 -> 新状态:【{best_match}】")
+                self.last_seen_person = best_match # 瞬间对状态机上锁，防后续帧连续轰炸
+                
+                # 极客微操：将当前全景画面极限压缩，确保不超过 UDP 最大载荷线
+                resized_frame = cv2.resize(local_frame, (320, 240))
+                _, img_buffer = cv2.imencode('.jpg', resized_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
+                base64_image = base64.b64encode(img_buffer).decode('utf-8')
+
+                # 动态自适应路由 Prompt 构造
+                if best_match == "陌生人":
+                    prompt_text = "系统提示：机器人视野正中央捕捉到一位陌生人。请用简练、热情的中文主动向其打招呼，描述他衣服的颜色或打扮，并询问有什么可以帮他。"
+                else:
+                    prompt_text = f"系统提示：机器人的老熟人【{best_match}】出现了。请用一种见到多年老友般、极具情绪起伏的中文口吻主动向他打招呼，顺便针对照片点评并夸赞他今天的衣着打扮。"
+
+                # 完美复刻旧版 observer 传输协议，网关无缝解析
+                payload = json.dumps({"text": prompt_text, "image": base64_image})
+                try:
+                    self.udp_client.sendto(payload.encode('utf-8'), self.gateway_addr)
+                    print(f" 🚀 [UDP 空投成功] 512维判定特征已合拢，图文 Payload 成功送达 7000 网关。")
+                except Exception as e:
+                    print(f" ❌ [UDP 发送失败]: {e}")
+
+    def handle_person_absence_fsm(self):
+        """处理人脸在视觉雷达中消失情况的防抖保护状态机机能"""
+        if self.last_seen_person is not None and self.person_leave_time == 0.0:
+            # 第一帧发现人脸丢帧，立刻打上物理时间戳，进入 10 秒缓冲备战带
+            self.person_leave_time = time.time()
+            return
+
+        if self.last_seen_person is not None and time.time() - self.person_leave_time > 10.0:
+            # 确认走远，彻底清除记忆
+            print(f" -> 📭 [状态机重置] 目标【{self.last_seen_person}】离开超时满 10 秒，清空历史记忆。")
+            self.last_seen_person = None
+            self.person_leave_time = 0.0
+
+if __name__ == "__main__":
+    try:
+        tracker = UltimateVisionTracker()
+        # 将主线程转让给 20Hz 控制流死循环
+        tracker.control_loop_20hz()
+    except rospy.ROSInterruptException:
+        pass

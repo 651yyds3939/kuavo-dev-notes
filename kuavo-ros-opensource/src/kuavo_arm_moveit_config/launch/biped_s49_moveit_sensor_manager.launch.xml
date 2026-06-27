@@ -1,0 +1,4 @@
+<launch>
+  <!-- MoveIt Setup Assistant 占位；传感器列表由 sensor_manager_octomap.launch.xml 的 rosparam 加载 -->
+  <param name="moveit_sensor_manager" value="biped_s49"/>
+</launch>

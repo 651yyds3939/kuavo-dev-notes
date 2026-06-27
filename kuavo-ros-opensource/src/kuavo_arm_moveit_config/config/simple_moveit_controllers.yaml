@@ -1,0 +1,27 @@
+# 🦾 对齐终端 4 kuavo_moveit_bridge.py 的双通道 Action 映射网
+controller_list:
+  - name: left_arm_controller
+    action_ns: follow_joint_trajectory
+    type: FollowJointTrajectory
+    default: True
+    joints:
+      - zarm_l1_joint
+      - zarm_l2_joint
+      - zarm_l3_joint
+      - zarm_l4_joint
+      - zarm_l5_joint
+      - zarm_l6_joint
+      - zarm_l7_joint
+
+  - name: right_arm_controller
+    action_ns: follow_joint_trajectory
+    type: FollowJointTrajectory
+    default: True
+    joints:
+      - zarm_r1_joint
+      - zarm_r2_joint
+      - zarm_r3_joint
+      - zarm_r4_joint
+      - zarm_r5_joint
+      - zarm_r6_joint
+      - zarm_r7_joint

@@ -1,0 +1,47 @@
+<launch>
+    
+    <arg name="with_wrist_camera" default="false" />
+
+    <!-- Orbbec 335L：关闭驱动内点云（多订阅易 SIGSEGV），改 depth_image_proc 生成点云 -->
+    <include file="$(find orbbec_camera)/launch/gemini_330_series.launch" >
+        <arg name="camera_name" value="camera" />
+        <arg name="color_fps" value="30" />
+        <arg name="enable_point_cloud" value="false" />
+    </include>
+
+    <!-- 稳定点云：depth + camera_info → /camera/depth/color/points（供 OctoMap / relay） -->
+    <node pkg="nodelet" type="nodelet" name="vla_pc_manager" args="manager" output="screen" />
+    <node pkg="nodelet" type="nodelet" name="vla_depth_to_pointcloud" output="screen"
+          args="load depth_image_proc/point_cloud_xyz vla_pc_manager --no-bond">
+        <remap from="image_rect" to="/camera/depth/image_raw" />
+        <remap from="camera_info" to="/camera/depth/camera_info" />
+        <remap from="points" to="/camera/depth/color/points" />
+    </node>
+
+    <!-- 启动 手腕realsense相机 -->
+    <group if="$(arg with_wrist_camera)">
+      <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
+        <arg name="camera" value="left_wrist_camera" />
+        <arg name="tf_prefix" value="left_wrist_camera" />
+        <arg name="serial_no" value="$(env LEFT_WRIST_CAMERA_SERIAL_NO)" />
+      </include>
+    </group>
+
+    <group if="$(arg with_wrist_camera)">
+      <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
+        <arg name="camera" value="right_wrist_camera" />
+        <arg name="tf_prefix" value="right_wrist_camera" />
+        <arg name="serial_no" value="$(env RIGHT_WRIST_CAMERA_SERIAL_NO)" />
+      </include>
+    </group>
+
+    <node pkg="tf2_ros" type="static_transform_publisher" name="camera_to_real_frame" args="-0.00408 0 0 0 0 0 camera camera_link" />
+    <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_torso" args="0 0 0 0 0 0 base_link torso" /> 
+    <node pkg="tf2_ros" type="static_transform_publisher" name="zhead_1_link_to_head_yaw" args="0 0 0 0 0 0 zhead_1_link head_yaw" />
+    <node pkg="tf2_ros" type="static_transform_publisher" name="zhead_2_link_to_head_pitch" args="0 0 0 0 0 0 zhead_2_link head_pitch" />
+
+    <include file="$(find apriltag_ros)/launch/continuous_detection.launch">
+      <arg name="camera_name" value="/camera/color" />
+      <arg name="image_topic" value="image_raw" />
+    </include>
+</launch>

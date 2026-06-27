@@ -1,0 +1,11 @@
+# MoveIt OctoMap：订阅上位机深度相机点云（与 moveit_octomap_grasp.py 配套）
+# 话题名请与上位机 rostopic list | grep points 核对
+sensors:
+  - sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
+    point_cloud_topic: /camera/depth/color/points
+    max_range: 2.5
+    max_update_rate: 2.0
+    padding_offset: 0.02
+    padding_scale: 1.0
+    point_subsample: 1
+    filtered_cloud_topic: filtered_cloud
