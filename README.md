@@ -6,6 +6,10 @@
 
 > 通用机器人知识见同级目录 [`robotics-notes`](../robotics-notes/)。
 
+> **整理状态：** 部分 `.md` 笔记与工作空间内的魔改程序**仍在撰写或整理中**，可能存在章节缺失、路径与当前真机不一致、或与最新官方版本未对齐等情况。请以文档内的终端命令与可运行代码为准；发现问题欢迎提 Issue。
+>
+> **训练效果：** [`leju_robot_rl/`](./leju_robot_rl/)（PPO 行走 / S49 舞蹈）与 [`leju_robot_wm/`](./leju_robot_wm/)（TD-MPC2 世界模型）的**策略效果尚未达到作者预期的稳定程度**，相关代码与奖励仍在快速迭代；**完整训练 → 验证 → 部署链路已跑通**，克隆者可在此基础上自行改奖励函数、替换 / 追加 CSV 动作数据等。详见各子目录 `README.md`。
+
 ---
 
 ## 🔗 工作空间软链接与迁移（作者本机专用，克隆者可跳过）
@@ -62,60 +66,109 @@
 
 ## 📚 核心知识库目录 (Documentation)
 
-完整索引见 [`kuavo_notes/README.md`](./kuavo_notes/README.md)。建议按主题链路阅读：
+完整索引见 [`kuavo_notes/README.md`](./kuavo_notes/README.md)。下列为 **52 篇**根目录 `.md` 的分类索引（不含 [`5功能案例/`](./kuavo_notes/5功能案例/案例目录.md) 内官方案例）。
 
-### 🟢 入门与环境
+**标记：** 🟢 仿真 / 阅读为主 · 🟡 需 Orin 或 NUC 之一 · 🔴 强依赖完整 Kuavo 4 Pro 真机（详见上文「硬件与阅读门槛」）。
 
-| 笔记 | 说明 |
-|------|------|
-| [`1.start.md`](./kuavo_notes/1.start.md) | 仿真 / 实机环境部署 |
-| [`2.first_node.md`](./kuavo_notes/2.first_node.md) | 第一个 ROS 节点 |
-| [`接口使用文档.md`](./kuavo_notes/接口使用文档.md) | SDK 接口速查 |
-| [`25.update.md`](./kuavo_notes/25.update.md) | 官方包升级冲突与 launch 排障 |
+### 🟢 概览与入门
 
-### 🟡 感知、抓取与 VLA
-
-| 笔记 | 说明 |
-|------|------|
-| [`4.3`](./kuavo_notes/4.3.real_robot_yolo_environment.md) · [`4.4`](./kuavo_notes/4.4real_visual_grasp.md) | 真机 YOLO 环境与 TF2 视觉抓取 |
-| [`22.1VLA_grasping.md`](./kuavo_notes/22.1VLA_grasping.md) | VLA 语音抓取（双机 9 终端） |
-| [`22.2.tree_VLA_grasp.md`](./kuavo_notes/22.2.tree_VLA_grasp.md) | 行为树版 VLA（`py_trees`） |
-| [`28.moveit_grasping.md`](./kuavo_notes/28.moveit_grasping.md) | MoveIt 经典版 / OctoMap 双轨抓取 |
-| [`20.gripper_issue.md`](./kuavo_notes/20.gripper_issue.md) | 夹爪安全（`claw_safe.py`） |
-
-### 🟡 大模型、语音与人脸
-
-| 笔记 | 说明 |
-|------|------|
-| [`21.2.local_AI_large_model.md`](./kuavo_notes/21.2.local_AI_large_model.md) | 离线 / 局域网大模型语音交互 |
-| [`21.3.gemini_model.md`](./kuavo_notes/21.3.gemini_model.md) | Gemini 全双工跨国网关 |
-| [`30.AI_image_identification.md`](./kuavo_notes/30.AI_image_identification.md) | VLM 图像触发 |
-| [`32.1`](./kuavo_notes/32.1.face_recognition.md) · [`32.2`](./kuavo_notes/32.2.face_recognition_traking.md) | 人脸识别 + 跟踪融合 |
-| [`24.1.visual_tracking.md`](./kuavo_notes/24.1.visual_tracking.md) | 头身协同视觉跟随 |
-
-### 🟢 → 🔴 强化学习：行走 Sim2Sim / Sim2Real
-
-| 笔记 | 标记 | 说明 |
+| 标记 | 文档 | 说明 |
 |------|------|------|
-| [`15.1.RL_lab_train.md`](./kuavo_notes/15.1.RL_lab_train.md) | 🟢 | Isaac Lab 训练全流程 |
-| [`15.2RL_lab_analysis_code.md`](./kuavo_notes/15.2RL_lab_analysis_code.md) | 🟢 | 奖励函数 / 域随机化拆解 |
-| [`15.3RL_lab_sim2sim.md`](./kuavo_notes/15.3RL_lab_sim_to_sim.md) | 🟢 | MuJoCo Sim2Sim 闭环 |
-| [`15.4RL_lab_sim_to_real.md`](./kuavo_notes/15.4RL_lab_sim_to_real.md) | 🔴 | **真机部署黑皮书**：v42/v46/v49 参数缝合、WBC 起立爆冲、50Hz/1000Hz 线程咬合 |
+| 🟢 | [`0.doc.md`](./kuavo_notes/0.doc.md) | 文档地图与阅读路线 |
+| 🟢 | [`0.1.example.md`](./kuavo_notes/0.1.example.md) | 开源 / 闭源边界与双机分工 |
+| 🟢 | [`1.start.md`](./kuavo_notes/1.start.md) | 仿真 / 实机环境部署 |
+| 🟢 | [`2.first_node.md`](./kuavo_notes/2.first_node.md) | 第一个 ROS 节点 |
+| 🟢 | [`接口使用文档.md`](./kuavo_notes/接口使用文档.md) | SDK 接口速查 |
+| 🟢 | [`999kuavo_resource.md`](./kuavo_notes/999kuavo_resource.md) | 资源链接汇总 |
+| 🟢 | [`29decision_tree.md`](./kuavo_notes/29decision_tree.md) | 决策树 |
 
-### 🟢 → 🔴 强化学习：S49 全身舞
+### 🟡 导航、地图与网络
 
-| 笔记 | 标记 | 说明 |
+| 标记 | 文档 | 说明 |
 |------|------|------|
-| [`23.1.RL_dance_overview.md`](./kuavo_notes/23.1.RL_dance_overview.md) | 🟢 | 舞蹈 RL 总览与分支纪律 |
-| [`23.3.RL_dance_train.md`](./kuavo_notes/23.3.RL_dance_train.md) | 🟢 | S49 训练（115 维 obs、mimic 奖励） |
-| [`23.4.RL_dance_sim2sim.md`](./kuavo_notes/23.4.RL_dance_sim2sim.md) | 🟢 | MuJoCo 舞蹈验证 |
-| [`23.5`](./kuavo_notes/23.5.RL_dance_deploy_hybrid.md) · [`23.6`](./kuavo_notes/23.6.RL_dance_terminal_commands.md) | 🔴 | 真机混合部署与终端命令全集 |
+| 🟡 | [`3.map_navigation.md`](./kuavo_notes/3.map_navigation.md) | 地图、FAST_LIO 与 Docker 挂载踩坑 |
+| 🟡 | [`3.1official_navigation.md`](./kuavo_notes/3.1official_navigation.md) | 官方导航案例集成 |
+| 🟡 | [`16.Internet.md`](./kuavo_notes/16.Internet.md) | 上下位机网络配置 |
+
+### 🟢 / 🟡 视觉、抓取与 MoveIt
+
+| 标记 | 文档 | 说明 |
+|------|------|------|
+| 🟢 | [`4.1.visual_grasping_route.md`](./kuavo_notes/4.1.visual_grasping_route.md) | 视觉抓取路线概览 |
+| 🟢 | [`4.2yolov8_sim.md`](./kuavo_notes/4.2yolov8_sim.md) | 仿真侧 YOLOv8 |
+| 🟡 | [`4.3.real_robot_yolo_environment.md`](./kuavo_notes/4.3.real_robot_yolo_environment.md) | 真机 YOLO 环境 |
+| 🟡 | [`4.4real_visual_grasp.md`](./kuavo_notes/4.4real_visual_grasp.md) | TF2 视觉抓取 |
+| 🟡 | [`6.visual_grasp.md`](./kuavo_notes/6.visual_grasp.md) | 视觉抓取基础 |
+| 🟡 | [`9.IK.md`](./kuavo_notes/9.IK.md) | 逆运动学 |
+| 🟡 | [`20.gripper_issue.md`](./kuavo_notes/20.gripper_issue.md) | 夹爪安全 |
+| 🔴 | [`28.moveit_grasping.md`](./kuavo_notes/28.moveit_grasping.md) | MoveIt 经典版 / OctoMap 双轨抓取 |
+
+### 🟡 / 🔴 全身、手臂与标定
+
+| 标记 | 文档 | 说明 |
+|------|------|------|
+| 🟡 | [`10.Tai_Ji.md`](./kuavo_notes/10.Tai_Ji.md) | 太极全身动作案例 |
+| 🟡 | [`13.arm_move.md`](./kuavo_notes/13.arm_move.md) | 手臂运动学 / 编舞 |
+| 🟡 | [`14.robot_dance.md`](./kuavo_notes/14.robot_dance.md) | 机器人舞蹈 |
+| 🔴 | [`18.teaching_gravity_compensation.md`](./kuavo_notes/18.teaching_gravity_compensation.md) | 示教 / 重力补偿 |
+| 🔴 | [`26.joint_calibration.md`](./kuavo_notes/26.joint_calibration.md) | 关节标定 |
+| 🟡 | [`27.camera_mtion_capture.md`](./kuavo_notes/27.camera_mtion_capture.md) | 相机 / 动捕 |
+| 🔴 | [`5.up_down_stair.md`](./kuavo_notes/5.up_down_stair.md) | 上下楼梯（真机） |
+
+### 🟡 大模型、VLA、语音与人脸
+
+| 标记 | 文档 | 说明 |
+|------|------|------|
+| 🟡 | [`21.1.connected_AI_large_model.md`](./kuavo_notes/21.1.connected_AI_large_model.md) | 联网大模型语音 |
+| 🟡 | [`21.2.local_AI_large_model.md`](./kuavo_notes/21.2.local_AI_large_model.md) | 离线 / 局域网大模型 |
+| 🟡 | [`21.3.gemini_model.md`](./kuavo_notes/21.3.gemini_model.md) | Gemini 全双工 |
+| 🟡 | [`22.1VLA_grasping.md`](./kuavo_notes/22.1VLA_grasping.md) | VLA 语音抓取（双机 9 终端） |
+| 🟡 | [`22.2.tree_VLA_grasp.md`](./kuavo_notes/22.2.tree_VLA_grasp.md) | 行为树版 VLA（`py_trees`） |
+| 🟡 | [`22.3.MCP_LeRobot_VLA_grasp.md`](./kuavo_notes/22.3.MCP_LeRobot_VLA_grasp.md) | MCP / LeRobot VLA |
+| 🟡 | [`24.1.visual_tracking.md`](./kuavo_notes/24.1.visual_tracking.md) | 头身协同视觉跟随 |
+| 🟡 | [`30.AI_image_identification.md`](./kuavo_notes/30.AI_image_identification.md) | VLM 图像触发 |
+| 🟡 | [`32.1.face_recognition.md`](./kuavo_notes/32.1.face_recognition.md) | 人脸识别 |
+| 🟡 | [`32.2.face_recognition_traking.md`](./kuavo_notes/32.2.face_recognition_traking.md) | 人脸跟踪融合 |
+
+### 🟢 → 🔴 强化学习 · 行走与 Gym
+
+| 标记 | 文档 | 说明 |
+|------|------|------|
+| 🟢 | [`7.1.gym_RL.md`](./kuavo_notes/7.1.gym_RL.md) | Gym 版 RL 环境 |
+| 🟢 | [`7.2.gym_RL_doc.md`](./kuavo_notes/7.2.gym_RL_doc.md) | Gym 版 RL 代码导读 |
+| 🟢 | [`8.imitation_learning.md`](./kuavo_notes/8.imitation_learning.md) | 模仿学习 / Lerobot |
+| 🟢 | [`15.1.RL_lab_train.md`](./kuavo_notes/15.1.RL_lab_train.md) | Isaac Lab 行走训练 |
+| 🟢 | [`15.2RL_lab_analysis_code.md`](./kuavo_notes/15.2RL_lab_analysis_code.md) | 奖励 / 域随机化拆解 |
+| 🟢 | [`15.3RL_lab_sim_to_sim.md`](./kuavo_notes/15.3RL_lab_sim_to_sim.md) | MuJoCo Sim2Sim |
+| 🔴 | [`15.4RL_lab_sim_to_real.md`](./kuavo_notes/15.4RL_lab_sim_to_real.md) | 行走 Sim2Real 真机 |
+
+### 🟢 → 🔴 强化学习 · S49 全身舞
+
+| 标记 | 文档 | 说明 |
+|------|------|------|
+| 🟢 | [`23.1.RL_dance_overview.md`](./kuavo_notes/23.1.RL_dance_overview.md) | S49 舞蹈 RL 总览与分支纪律 |
+| 🟢 | [`23.2.RL_dance_motion_data.md`](./kuavo_notes/23.2.RL_dance_motion_data.md) | 舞蹈 CSV / 动作数据准备 |
+| 🟢 | [`23.3.RL_dance_train.md`](./kuavo_notes/23.3.RL_dance_train.md) | S49 训练（115 维 obs、mimic 奖励） |
+| 🟢 | [`23.4.RL_dance_sim2sim.md`](./kuavo_notes/23.4.RL_dance_sim2sim.md) | MuJoCo 舞蹈验证 |
+| 🔴 | [`23.5.RL_dance_deploy_hybrid.md`](./kuavo_notes/23.5.RL_dance_deploy_hybrid.md) | 舞蹈真机混合部署 |
+| 🔴 | [`23.6.RL_dance_terminal_commands.md`](./kuavo_notes/23.6.RL_dance_terminal_commands.md) | 舞蹈终端命令全集 |
 
 ### 🟢 世界模型
 
-| 笔记 | 说明 |
-|------|------|
-| [`31.1.world_model.md`](./kuavo_notes/31.1.world_model.md) | TD-MPC2 / `leju_robot_wm` 实验 |
+| 标记 | 文档 | 说明 |
+|------|------|------|
+| 🟢 | [`31.1.world_model.md`](./kuavo_notes/31.1.world_model.md) | TD-MPC2 / `leju_robot_wm` 实验 |
+
+### 🟡 / 🔴 运维、遥控与真机排障
+
+| 标记 | 文档 | 说明 |
+|------|------|------|
+| 🟡 | [`17.h12_remote_control.md`](./kuavo_notes/17.h12_remote_control.md) | H12 遥控器 |
+| 🔴 | [`19.tremble_rosbag.md`](./kuavo_notes/19.tremble_rosbag.md) | 抖动 rosbag 排障 |
+| 🟡 | [`25.update.md`](./kuavo_notes/25.update.md) | 官方包升级与 launch 排障 |
+
+辅助脚本：[`scripts/analyze_r_takeover_bag.py`](./kuavo_notes/scripts/analyze_r_takeover_bag.py)（RL bag 分析，见 23.5）。
+
 
 ### 📎 官方案例（参考）
 
@@ -137,6 +190,18 @@
 ---
 
 
+## 🚧 训练相关工作空间（快速迭代中）
+
+| 目录 | 状态 | 说明 |
+|------|------|------|
+| [`leju_robot_rl/`](./leju_robot_rl/) | 链路已通，效果迭代中 | Isaac Lab + PPO：S42 行走、S49 舞蹈 mimic；奖励 / 域随机化 / CSV 动作仍在调 |
+| [`leju_robot_wm/`](./leju_robot_wm/) | 链路已通，效果迭代中 | TD-MPC2 世界模型：舞蹈 / 速度任务；仿真表现尚未稳定到可部署 |
+| [`kuavo-rl-opensource/`](./kuavo-rl-opensource/) | 部署侧随 RL 迭代 | MuJoCo / Docker / 真机 deploy；ONNX 与 `humanoidController` 需与训练侧对齐 |
+
+**给克隆者：** 本仓库提供的是**可复现的流水线与踩坑记录**，不是「开箱即用的最终策略」。欢迎 fork 后修改 `mdp/rewards.py`、任务配置、根目录 `kuavo_action_*.csv` 等继续实验。细节见各目录 README。
+
+---
+
 ## 📦 代码归档 (Code Snapshot)
 
 本仓库同时归档**魔改代码影子目录**（非官方完整包），与 `kuavo_notes/` 文档交叉引用：
@@ -155,7 +220,7 @@ kuavo-dev-notes/
 
 各目录说明见对应 `README.md`。
 
-**说明：** 真机源码主要在 NUC / Orin 上维护；本仓库为开发机上的**笔记与代码归档**。真机不会随 `git push` 自动变更。
+**说明：** 真机源码主要在 NUC / Orin 上维护；本仓库为开发机上的**笔记与代码归档**。魔改影子目录与 RL 子仓**仍在迭代**，可能与文档不同步。真机不会随 `git push` 自动变更。
 
 ---
 
@@ -175,9 +240,9 @@ kuavo-dev-notes/
 
 ## 📤 推送 GitHub 建议
 
-* 全仓本地约 **26GB**（含训练日志与编译产物），**请勿整包 push**。
-* **GitHub 推送建议（体积控制）：** `kuavo_notes/` + `kuavo-ros-opensource/` + `kuavo_ros_application/` + 根 README（约 100MB 级）。
-* 推送 RL/WM/部署整仓时，务必 `.gitignore` 排除 `logs/`、`outputs/`、`build/`、`devel/`、`*.pt`、`*.onnx` 等大文件。
+* **本地体积（2026-06 整理后）：** 本仓库工作文件（不含 `.git`）约 **~1.5GB**；含各子仓 `.git` 历史约 **~3.5GB**。训练 log / video（约 **17GB**）已外置至 `~/kuavo_all/_training_logs`，**不在本目录内**。早期「全仓 ~26GB」说法已过时，**请勿整包 push**。
+* **GitHub 推送建议（体积控制）：** 优先 `kuavo_notes/` + `kuavo-ros-opensource/` + `kuavo_ros_application/` + 根 README（约 **100MB 级**）；RL / WM / 部署子仓按需精选，勿含 checkpoint。
+* 推送 RL/WM/部署整仓时，务必 `.gitignore` 排除 `logs/`、`outputs/`、`build/`、`devel/`、`videos/`、`*.pt`、`*.onnx` 等大文件。
 
 ---
 
