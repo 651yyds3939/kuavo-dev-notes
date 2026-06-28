@@ -1,6 +1,6 @@
 # VLA 案例 22 — Python 行为树（py_trees）
 
-位置：`kuavo-ros-opensource/src/demo/vla_grasp/bt/`（作品集路径；真机 NUC 同相对路径）  
+位置：`kuavo-ros-opensource/src/demo/vla_grasp/bt/`（本仓库内路径；真机 NUC 同相对路径）  
 入口：`../vla_bt_daemon.py`  
 文档：[`kuavo_notes/22.2.tree_VLA_grasp.md`](../../../../../../kuavo_notes/22.2.tree_VLA_grasp.md)
 

@@ -1,4 +1,4 @@
-# 🚀 Kuavo 4 Pro 具身智能二次开发实战作品集
+# 🚀 Kuavo 4 Pro 具身智能二次开发笔记与代码归档
 
 本仓库记录了在乐聚 **Kuavo 4 Pro（四代机 / S49）** 上进行二次开发的完整实战笔记、魔改代码与实验归档。
 
@@ -7,6 +7,17 @@
 > 通用机器人知识见同级目录 [`robotics-notes`](../robotics-notes/)。
 
 ---
+
+## 🔗 工作空间软链接与迁移（作者本机专用，克隆者可跳过）
+
+> **给 GitHub 访客：** 下面两个文件是作者在自己电脑上的**目录整理脚本与说明**（`~/kuavo_all`、`~/Notes` 路径、`logs` 归档等）。  
+> **你 clone 本仓库阅读笔记/代码时，通常不需要运行它们**；只有当你要复刻作者同一套「本仓库 + 终端入口 + 训练产物外置」目录布局时再看。
+
+- **拓扑说明：** [`SYMLINK_LAYOUT.md`](./SYMLINK_LAYOUT.md) — 软链接三层结构、铁律与排障
+- **维护脚本：** [`automove_and_link.sh`](./automove_and_link.sh) — 迁移/归档/验链（`./automove_and_link.sh help`）
+
+
+
 
 ## ⚠️ 免责声明 (Disclaimer)
 
@@ -23,6 +34,7 @@
 * **真机安全警告：** 人形机器人真机调试具有极高物理风险（关节爆冲、摔机、电池甩落等）。参考本仓库进行点火实测前，**必须**做好龙门架防坠、急停链路验证、安全员隔离与低速空载测试。**作者不对因参考本仓库内容造成的设备损坏或人身伤害承担任何责任。**
 
 ---
+
 
 ## 💻 硬件与阅读门槛 (Hardware & Prerequisites)
 
@@ -46,6 +58,7 @@
 | 上位机 | Jetson Orin NX | `~/kuavo_ros_application` |
 
 ---
+
 
 ## 📚 核心知识库目录 (Documentation)
 
@@ -110,6 +123,7 @@
 
 ---
 
+
 ## 💡 为什么会有这个仓库？
 
 人形机器人的二次开发绝不是「克隆官方仓库 → 改两行 launch → 点火」。在 Kuavo 4 Pro 上，我们遭遇的是**跨版本、跨机器、跨框架**的系统性摩擦：
@@ -121,6 +135,7 @@
 * **文档分散、深坑未记：** 上述问题的排障过程分散在数百次终端会话中；本仓库的价值是**拒绝重复踩坑**，把「现象 → 根因 → 命令 → 代码」串成可复现的笔记。
 
 ---
+
 
 ## 📦 代码归档 (Code Snapshot)
 
@@ -134,14 +149,16 @@ kuavo-dev-notes/
 ├── leju_robot_rl/            # 🧪 Isaac Lab RL 训练（含 S49 舞蹈）
 ├── leju_robot_wm/            # 🧪 TD-MPC2 世界模型
 ├── kuavo-rl-opensource/      # 🤖 RL 部署（MuJoCo / 真机 Docker）
-└── automove_and_link.sh      # 本机 ~/kuavo_all 软链接辅助脚本（可选）
+├── automove_and_link.sh      # 作者本机目录维护脚本（克隆者可忽略）
+└── SYMLINK_LAYOUT.md         # 软链接说明（克隆者可忽略）
 ```
 
 各目录说明见对应 `README.md`。
 
-**说明：** 真机源码主要在 NUC / Orin 上维护；本仓库为开发机上的**作品集快照**。真机不会随 `git push` 自动变更。
+**说明：** 真机源码主要在 NUC / Orin 上维护；本仓库为开发机上的**笔记与代码归档**。真机不会随 `git push` 自动变更。
 
 ---
+
 
 ## 🛠️ 技术栈 (Tech Stack)
 
@@ -155,19 +172,22 @@ kuavo-dev-notes/
 
 ---
 
+
 ## 📤 推送 GitHub 建议
 
 * 全仓本地约 **26GB**（含训练日志与编译产物），**请勿整包 push**。
-* **作品集推荐：** `kuavo_notes/` + `kuavo-ros-opensource/` + `kuavo_ros_application/` + 根 README（约 100MB 级）。
+* **GitHub 推送建议（体积控制）：** `kuavo_notes/` + `kuavo-ros-opensource/` + `kuavo_ros_application/` + 根 README（约 100MB 级）。
 * 推送 RL/WM/部署整仓时，务必 `.gitignore` 排除 `logs/`、`outputs/`、`build/`、`devel/`、`*.pt`、`*.onnx` 等大文件。
 
 ---
+
 
 ## 🤖 关于作者 (About)
 
 机器人工程专业毕业生，有人形机器人二次开发经验、轮式机器人设计经验。目前正致力于探索 AI 驱动的具身智能控制前沿，即将在机器人与人工智能领域开启进一步的硕士研究。热衷于跨越仿真与真实物理世界之间的鸿沟，并把那些「官方文档不会写」的踩坑过程整理成可复现的笔记。
 
 ---
+
 
 ## 🔗 官方 upstream（请优先 star / fork 官方）
 
@@ -180,4 +200,3 @@ kuavo-dev-notes/
 
 ---
 
-<p align="center"><sub>本仓库为个人学习笔记与作品集，与乐聚机器人无官方关联。</sub></p>
