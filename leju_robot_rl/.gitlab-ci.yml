@@ -1,0 +1,31 @@
+# GitLab CI/CD Configuration
+variables:
+  GITEE_REPO_LOCAL_DIR: "/home/carlos/CI/highlydynamic/leju_robot_rl"
+  GITEE_ORIGIN: "git@gitee.com:leju-robot/leju_robot_rl.git"
+
+stages:
+  - compile
+  - sync
+
+compile:
+  stage: compile
+  tags:
+    - ocs2
+  except:
+    - master
+    - beta
+    - /^opensource\/.*$/
+  script:
+    - echo "Compiling project for branch $CI_COMMIT_REF_NAME"
+
+sync_to_gitee:
+  stage: sync
+  tags:
+    - ocs2
+  only:
+    - master
+    - beta
+    - /^opensource\/.*$/
+  script:
+    - chmod +x ${CI_PROJECT_DIR}/ci_scripts/sync_to_gitee.sh
+    - ${CI_PROJECT_DIR}/ci_scripts/sync_to_gitee.sh

@@ -1,0 +1,30 @@
+<?xml version="1.0" ?>
+<!-- S49 dance MuJoCo sim2sim (validated hybrid WBC+RL deploy).
+     Defaults below: ~64s stable dance bag (blend=0.75, offset=0.5, tau=0.01, ramp=1.5).
+     Pure RL (sim_keep_wbc_with_rl:=false) is NOT supported for duck_sit — WBC carries balance.
+     Requires: export ROBOT_VERSION=49 before launch. -->
+<launch>
+    <arg name="joystick_type" default="sim"/>
+    <arg name="rl_from_start" default="false"/>
+    <arg name="sim_keep_wbc_with_rl" default="true"/>
+    <arg name="sim_rl_debug_zero_action" default="false"/>
+    <arg name="sim_wbc_rl_action_blend" default="0.75"/>
+    <arg name="sim_wbc_rl_blend_start" default="0.60"/>
+    <arg name="sim_wbc_rl_blend_ramp_sec" default="1.5"/>
+    <arg name="sim_wbc_ref_filter_tau" default="0.010"/>
+    <arg name="sim_wbc_max_rl_joint_offset_rad" default="0.50"/>
+    <include file="$(find humanoid_controllers)/launch/load_kuavo_mujoco_sim.launch">
+        <arg name="robot_version" value="49"/>
+        <arg name="rl_param" value="$(find humanoid_controllers)/config/kuavo_v49/rl/skw_rl_param_dance.info"/>
+        <arg name="inference_frequency" value="50"/>
+        <arg name="joystick_type" value="$(arg joystick_type)"/>
+        <arg name="rl_from_start" value="$(arg rl_from_start)"/>
+        <arg name="sim_keep_wbc_with_rl" value="$(arg sim_keep_wbc_with_rl)"/>
+        <arg name="sim_rl_debug_zero_action" value="$(arg sim_rl_debug_zero_action)"/>
+        <arg name="sim_wbc_rl_action_blend" value="$(arg sim_wbc_rl_action_blend)"/>
+        <arg name="sim_wbc_rl_blend_start" value="$(arg sim_wbc_rl_blend_start)"/>
+        <arg name="sim_wbc_rl_blend_ramp_sec" value="$(arg sim_wbc_rl_blend_ramp_sec)"/>
+        <arg name="sim_wbc_ref_filter_tau" value="$(arg sim_wbc_ref_filter_tau)"/>
+        <arg name="sim_wbc_max_rl_joint_offset_rad" value="$(arg sim_wbc_max_rl_joint_offset_rad)"/>
+    </include>
+</launch>

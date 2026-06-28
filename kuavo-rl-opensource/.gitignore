@@ -1,0 +1,8 @@
+.aider*
+.ssh/
+*.pem
+id_rsa
+id_rsa.pub
+
+.catkin_tools/*
+.vscode/*

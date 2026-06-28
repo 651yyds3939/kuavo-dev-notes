@@ -1,0 +1,8 @@
+prefix=/media/data/gitlab-runner/builds/8rHoW4Dt/0/highlydynamic/kuavo-RL/kuavo-robot-deploy/installed
+
+Name: kuavo_solver
+Description: Description of kuavo_solver
+Version: 0.0.0
+Cflags: -I${prefix}/include -I/usr/include/eigen3
+Libs: -L${prefix}/lib -lkuavo_solver
+Requires: 

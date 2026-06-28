@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>humanoid_controllers</name>
+    <version>0.0.0</version>
+    <description>The humanoid_controllers packages.</description>
+    <maintainer email="liaoqiayuan@gmail.com">Qiayuan Liao</maintainer>
+    <license>BSD</license>
+    <author email="liaoqiayuan@gmail.com">Qiayuan Liao</author>
+
+    <buildtool_depend>catkin</buildtool_depend>
+    <build_depend>nodelet</build_depend>
+
+    <build_depend>cmake_clang_tools</build_depend>
+    <depend>roscpp</depend>
+    <depend>humanoid_interface</depend>
+    <depend>humanoid_estimation</depend>
+    <depend>humanoid_interface_ros</depend>
+    <depend>humanoid_interface_drake</depend>
+    <depend>kuavo_estimation</depend>
+    <depend>biped_s3</depend>
+    <depend>biped_s40</depend>
+    <depend>biped_s42</depend>
+    <depend>kuavo_msgs</depend>
+    <depend>kuavo_solver</depend>
+    <!-- <depend>mujoco_sim</depend> -->
+    <depend>mujoco_cpp</depend>
+    <depend>humanoid_wbc</depend>
+    <depend>kuavo_assets</depend>
+    <depend>controller_interface</depend>
+    <depend>hardware_node</depend>
+    <depend>humanoid_common</depend>
+    <depend>h12pro_controller_node</depend>
+    <depend>ocs2_core</depend>
+    <depend>ocs2_oc</depend>
+    <depend>ocs2_ddp</depend>
+    <depend>ocs2_mpc</depend>
+    <depend>ocs2_sqp</depend>
+    <depend>ocs2_ipm</depend>
+    <depend>ocs2_robotic_tools</depend>
+    <depend>ocs2_pinocchio_interface</depend>
+    <depend>ocs2_centroidal_model</depend>
+    <!-- <depend>ocs2_robotic_assets</depend> -->
+    <depend>ocs2_msgs</depend>
+    <depend>ocs2_ros_interfaces</depend>
+    <depend>qpoases_catkin</depend>
+    <!-- <depend>ocs2_biped_robot_ros</depend> -->
+
+    <depend>angles</depend>
+    <exec_depend>nodelet</exec_depend>
+    <exec_depend>controller_manager</exec_depend>
+
+    <export>
+        <controller_interface plugin="${prefix}/humanoid_controllers_plugins.xml"/>
+        <nodelet plugin="${prefix}/plugins/nodelet_controller_plugin.xml" />
+    </export>
+</package>

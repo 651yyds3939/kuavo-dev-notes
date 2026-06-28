@@ -1,0 +1,21 @@
+<?xml version="1.0" ?>
+<!-- S49 dance: pure RL joint PD (Isaac-like), no WBC tracking blend.
+     MuJoCo applies precomputed tau from updateRLcmd (kp/kd in controller, not in mujoco_node).
+     Expect kneel/jump like training; may fall — that is the sim2sim test.
+     Usage:
+       roslaunch humanoid_controllers load_kuavo_mujoco_sim_dance_s49_pure_rl.launch joystick_type:=sim
+     Auto-start RL after spawn settle (~1s), no R key:
+       ... rl_from_start:=true
+     Manual R after WBC stand (handoff with brief WBC hold):
+       ... rl_from_start:=false  then press R in sim -->
+<launch>
+    <arg name="joystick_type" default="sim"/>
+    <arg name="rl_from_start" default="true"/>
+    <arg name="sim_rl_debug_zero_action" default="false"/>
+    <include file="$(find humanoid_controllers)/launch/load_kuavo_mujoco_sim_dance_s49.launch">
+        <arg name="joystick_type" value="$(arg joystick_type)"/>
+        <arg name="rl_from_start" value="$(arg rl_from_start)"/>
+        <arg name="sim_keep_wbc_with_rl" value="false"/>
+        <arg name="sim_rl_debug_zero_action" value="$(arg sim_rl_debug_zero_action)"/>
+    </include>
+</launch>
