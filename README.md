@@ -46,13 +46,15 @@
 
 | 标记 | 含义 |
 |------|------|
-| 🟢 | 纯仿真 / 代码阅读，**无需真机**（需 Ubuntu + 独立显卡用于 Isaac Lab） |
-| 🟡 | 需 **Orin 上位机** 或 **NUC 下位机** 之一（视觉 / 大模型 / 单臂等） |
-| 🔴 | **强依赖完整 Kuavo 4 Pro 真机**（双机联调、RL 真机部署、全身动作等） |
+| 🟢 | **无需 Kuavo 真机**：仿真、离线训练、代码阅读即可跟进主体内容（PC + NVIDIA GPU，用于 Isaac Lab / MuJoCo 等） |
+| 🟡 | **需 Kuavo 4 Pro 真机 · 单机侧**：文档主体可在 NUC **或** Orin **任一侧**完成，或属于单模块 / 低风险调试（网络、地图、Orin 侧语音视觉、单臂动作等） |
+| 🔴 | **需 Kuavo 4 Pro 真机 · 双机或全身/部署**：NUC 与 Orin **必须协同**，或 RL Sim2Real / 舞蹈真机部署 / MoveIt 全身抓取等**高集成、高风险**操作 |
 
-* 🟢 **RL 训练与 Sim2Sim（15.1 – 15.3、23.3 – 23.4）**：带 NVIDIA GPU 的 Ubuntu 主机即可，从 Isaac Lab 炼丹到 MuJoCo 闭环，无需机器人。
-* 🟡 **视觉 / VLA / 大模型（4.x、21.x、22.x、30、32）**：至少需要 Orin NX 或 NUC 其中一侧；完整抓取需双机组网。
-* 🔴 **RL Sim2Real、MoveIt 真机抓取、舞蹈部署（15.4、23.5 – 23.6、28）**：需要 Kuavo 4 Pro 物理真机 + 龙门架 + 熟练急停操作。
+> **说明：** Orin（上位机）与 NUC（下位机）都是 Kuavo 4 Pro 自带算力，**不是**「有没有真机」的区别。🟡 与 🔴 表示的是**在真机上的联调范围与物理风险**，不是第二套硬件门槛。
+
+* 🟢 **RL 训练与 Sim2Sim（15.1 – 15.3、23.3 – 23.4）**：带 NVIDIA GPU 的 Ubuntu 主机即可，无需机器人。
+* 🟡 **单机侧真机（16、17、21.x、32、部分 4.x）**：机器人需上电，但主要在一侧算力上跑通；仍建议龙门架与急停就绪。
+* 🔴 **双机联调 / 全身部署（22.x 抓取链、15.4、23.5 – 23.6、28 等）**：NUC + Orin 组网，或涉及全身 RL / MoveIt 真机，**必须**低速、防坠、熟练急停。
 
 **双机架构（真机联调时）：**
 
@@ -68,7 +70,7 @@
 
 完整索引见 [`kuavo_notes/README.md`](./kuavo_notes/README.md)。下列为 **52 篇**根目录 `.md` 的分类索引（不含 [`5功能案例/`](./kuavo_notes/5功能案例/案例目录.md) 内官方案例）。
 
-**标记：** 🟢 仿真 / 阅读为主 · 🟡 需 Orin 或 NUC 之一 · 🔴 强依赖完整 Kuavo 4 Pro 真机（详见上文「硬件与阅读门槛」）。
+**标记：** 🟢 无需真机 · 🟡 需真机（单机侧：NUC 或 Orin 任一侧）· 🔴 需真机（双机协同或全身/部署）。Orin/NUC 均为整机算力，详见 [`../README.md`](../README.md)「硬件与阅读门槛」。
 
 ### 🟢 概览与入门
 
@@ -82,7 +84,7 @@
 | 🟢 | [`999kuavo_resource.md`](./kuavo_notes/999kuavo_resource.md) | 资源链接汇总 |
 | 🟢 | [`29decision_tree.md`](./kuavo_notes/29decision_tree.md) | 决策树 |
 
-### 🟡 导航、地图与网络
+### 🟡 真机 · 单机侧 — 导航、地图与网络
 
 | 标记 | 文档 | 说明 |
 |------|------|------|
@@ -90,42 +92,42 @@
 | 🟡 | [`3.1official_navigation.md`](./kuavo_notes/3.1official_navigation.md) | 官方导航案例集成 |
 | 🟡 | [`16.Internet.md`](./kuavo_notes/16.Internet.md) | 上下位机网络配置 |
 
-### 🟢 / 🟡 视觉、抓取与 MoveIt
+### 🟢 / 🟡 / 🔴 视觉、抓取与 MoveIt
 
 | 标记 | 文档 | 说明 |
 |------|------|------|
 | 🟢 | [`4.1.visual_grasping_route.md`](./kuavo_notes/4.1.visual_grasping_route.md) | 视觉抓取路线概览 |
 | 🟢 | [`4.2yolov8_sim.md`](./kuavo_notes/4.2yolov8_sim.md) | 仿真侧 YOLOv8 |
 | 🟡 | [`4.3.real_robot_yolo_environment.md`](./kuavo_notes/4.3.real_robot_yolo_environment.md) | 真机 YOLO 环境 |
-| 🟡 | [`4.4real_visual_grasp.md`](./kuavo_notes/4.4real_visual_grasp.md) | TF2 视觉抓取 |
-| 🟡 | [`6.visual_grasp.md`](./kuavo_notes/6.visual_grasp.md) | 视觉抓取基础 |
+| 🔴 | [`4.4real_visual_grasp.md`](./kuavo_notes/4.4real_visual_grasp.md) | TF2 视觉抓取 |
+| 🔴 | [`6.visual_grasp.md`](./kuavo_notes/6.visual_grasp.md) | 视觉抓取基础 |
 | 🟡 | [`9.IK.md`](./kuavo_notes/9.IK.md) | 逆运动学 |
 | 🟡 | [`20.gripper_issue.md`](./kuavo_notes/20.gripper_issue.md) | 夹爪安全 |
 | 🔴 | [`28.moveit_grasping.md`](./kuavo_notes/28.moveit_grasping.md) | MoveIt 经典版 / OctoMap 双轨抓取 |
 
-### 🟡 / 🔴 全身、手臂与标定
+### 🟡 / 🔴 真机 — 全身、手臂与标定
 
 | 标记 | 文档 | 说明 |
 |------|------|------|
-| 🟡 | [`10.Tai_Ji.md`](./kuavo_notes/10.Tai_Ji.md) | 太极全身动作案例 |
+| 🔴 | [`10.Tai_Ji.md`](./kuavo_notes/10.Tai_Ji.md) | 太极全身动作案例 |
 | 🟡 | [`13.arm_move.md`](./kuavo_notes/13.arm_move.md) | 手臂运动学 / 编舞 |
-| 🟡 | [`14.robot_dance.md`](./kuavo_notes/14.robot_dance.md) | 机器人舞蹈 |
+| 🔴 | [`14.robot_dance.md`](./kuavo_notes/14.robot_dance.md) | 机器人舞蹈 |
 | 🔴 | [`18.teaching_gravity_compensation.md`](./kuavo_notes/18.teaching_gravity_compensation.md) | 示教 / 重力补偿 |
 | 🔴 | [`26.joint_calibration.md`](./kuavo_notes/26.joint_calibration.md) | 关节标定 |
 | 🟡 | [`27.camera_mtion_capture.md`](./kuavo_notes/27.camera_mtion_capture.md) | 相机 / 动捕 |
 | 🔴 | [`5.up_down_stair.md`](./kuavo_notes/5.up_down_stair.md) | 上下楼梯（真机） |
 
-### 🟡 大模型、VLA、语音与人脸
+### 🟡 / 🔴 真机 — 大模型、VLA、语音与人脸
 
 | 标记 | 文档 | 说明 |
 |------|------|------|
 | 🟡 | [`21.1.connected_AI_large_model.md`](./kuavo_notes/21.1.connected_AI_large_model.md) | 联网大模型语音 |
 | 🟡 | [`21.2.local_AI_large_model.md`](./kuavo_notes/21.2.local_AI_large_model.md) | 离线 / 局域网大模型 |
 | 🟡 | [`21.3.gemini_model.md`](./kuavo_notes/21.3.gemini_model.md) | Gemini 全双工 |
-| 🟡 | [`22.1VLA_grasping.md`](./kuavo_notes/22.1VLA_grasping.md) | VLA 语音抓取（双机 9 终端） |
-| 🟡 | [`22.2.tree_VLA_grasp.md`](./kuavo_notes/22.2.tree_VLA_grasp.md) | 行为树版 VLA（`py_trees`） |
-| 🟡 | [`22.3.MCP_LeRobot_VLA_grasp.md`](./kuavo_notes/22.3.MCP_LeRobot_VLA_grasp.md) | MCP / LeRobot VLA |
-| 🟡 | [`24.1.visual_tracking.md`](./kuavo_notes/24.1.visual_tracking.md) | 头身协同视觉跟随 |
+| 🔴 | [`22.1VLA_grasping.md`](./kuavo_notes/22.1VLA_grasping.md) | VLA 语音抓取（双机 9 终端） |
+| 🔴 | [`22.2.tree_VLA_grasp.md`](./kuavo_notes/22.2.tree_VLA_grasp.md) | 行为树版 VLA（`py_trees`） |
+| 🔴 | [`22.3.MCP_LeRobot_VLA_grasp.md`](./kuavo_notes/22.3.MCP_LeRobot_VLA_grasp.md) | MCP / LeRobot VLA |
+| 🔴 | [`24.1.visual_tracking.md`](./kuavo_notes/24.1.visual_tracking.md) | 头身协同视觉跟随 |
 | 🟡 | [`30.AI_image_identification.md`](./kuavo_notes/30.AI_image_identification.md) | VLM 图像触发 |
 | 🟡 | [`32.1.face_recognition.md`](./kuavo_notes/32.1.face_recognition.md) | 人脸识别 |
 | 🟡 | [`32.2.face_recognition_traking.md`](./kuavo_notes/32.2.face_recognition_traking.md) | 人脸跟踪融合 |
@@ -159,7 +161,7 @@
 |------|------|------|
 | 🟢 | [`31.1.world_model.md`](./kuavo_notes/31.1.world_model.md) | TD-MPC2 / `leju_robot_wm` 实验 |
 
-### 🟡 / 🔴 运维、遥控与真机排障
+### 🟡 / 🔴 真机 — 运维、遥控与排障
 
 | 标记 | 文档 | 说明 |
 |------|------|------|
