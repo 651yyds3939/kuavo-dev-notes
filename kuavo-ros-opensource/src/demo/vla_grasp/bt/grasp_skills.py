@@ -33,6 +33,7 @@ from . import config
 
 SAFE_LOCKED_Z = 0.385
 LIFT_HEIGHT = 0.22
+LIFT_HEIGHT_FALLBACKS_M = (0.22, 0.18, 0.14, 0.10)  # 抬升 IK 无解时递减 4cm
 CLAW_ROLL_RIGHT = 1.5708
 CLAW_ROLL_LEFT = -1.5708
 
@@ -209,12 +210,25 @@ class GraspSkills:
 
         ik_req.hand_poses.left_pose.joint_angles = list(q_grasp[:7])
         ik_req.hand_poses.right_pose.joint_angles = list(q_grasp[7:])
-        if plan.is_left_arm:
-            ik_req.hand_poses.left_pose.pos_xyz = [plan.locked_x, plan.locked_y, plan.locked_z + LIFT_HEIGHT]
+        q_lift = q_grasp
+        for h in LIFT_HEIGHT_FALLBACKS_M:
+            if plan.is_left_arm:
+                ik_req.hand_poses.left_pose.pos_xyz = [plan.locked_x, plan.locked_y, plan.locked_z + h]
+            else:
+                ik_req.hand_poses.right_pose.pos_xyz = [plan.locked_x, plan.locked_y, plan.locked_z + h]
+            ok, q_try = self.solve_ik(ik_req, f"step D lift {int(round(h * 100))}cm")
+            if ok:
+                q_lift = q_try
+                if h < LIFT_HEIGHT - 1e-6:
+                    rospy.logwarn(
+                        "⚠️ 抬升 %dcm IK 无解，降级为 %dcm",
+                        int(round(LIFT_HEIGHT * 100)),
+                        int(round(h * 100)),
+                    )
+                break
         else:
-            ik_req.hand_poses.right_pose.pos_xyz = [plan.locked_x, plan.locked_y, plan.locked_z + LIFT_HEIGHT]
-        ok, q_lift = self.solve_ik(ik_req, "step D lift")
-        plan.q_lift = q_lift if ok else q_grasp
+            rospy.logwarn("⚠️ 全部抬升高度 IK 失败，回退使用抓握点（无垂直拔高）")
+        plan.q_lift = q_lift
 
         q_high_safe = list(plan.q_lift)
         if plan.is_left_arm:

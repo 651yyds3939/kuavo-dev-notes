@@ -8,7 +8,7 @@ OUT_DIR="${REPO_ROOT}/motion_refs/lafan1_g1"
 CLIP_SEC="${CLIP_SEC:-60}"
 SRC_FPS="${SRC_FPS:-30}"
 DST_FPS="${DST_FPS:-50}"
-PROFILE="${PROFILE:-fullbody_inplace}"
+PROFILE="${PROFILE:-kuavo_dance}"
 
 mkdir -p "${OUT_DIR}"
 
@@ -21,7 +21,7 @@ fi
 
 for src in "${files[@]}"; do
   base="$(basename "${src}" .csv)"
-  out="${OUT_DIR}/${base}_INPLACE_RAD.csv"
+  out="${OUT_DIR}/${base}_DANCE_RAD.csv"
   echo "==> ${base}"
   python3 "${REPO_ROOT}/scripts/tools/adapt_lafan1_g1_to_kuavo.py" \
     --input "${src}" \
@@ -33,7 +33,7 @@ for src in "${files[@]}"; do
     --profile "${PROFILE}"
 done
 
-primary="${OUT_DIR}/dance1_subject1_INPLACE_RAD.csv"
-train_link="${REPO_ROOT}/kuavo_action_LAFAN1_g1_dance1_INPLACE_RAD.csv"
+primary="${OUT_DIR}/dance1_subject1_DANCE_RAD.csv"
+train_link="${REPO_ROOT}/kuavo_action_LAFAN1_g1_dance1_DANCE_RAD.csv"
 cp -f "${primary}" "${train_link}"
 echo "Primary training CSV: ${train_link}"

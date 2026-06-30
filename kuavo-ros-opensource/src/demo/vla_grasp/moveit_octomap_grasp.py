@@ -387,7 +387,6 @@ def _run_octomap_grasp_sequence(left_arm, right_arm, arm_pub, scene_iface, x_his
     pre_y = shoulder_y + (locked_y - shoulder_y) * ratio
     grasp_pose = mag._build_pose_stamped(locked_x, locked_y, locked_z, quat)
     pre_pose = mag._build_pose_stamped(pre_x, pre_y, locked_z, quat)
-    lift_pose = mag._build_pose_stamped(locked_x, locked_y, locked_z + mag.LIFT_HEIGHT, quat)
 
     _, ee_link = mag._ik_group_profile(is_left_arm)
     try:
@@ -411,9 +410,9 @@ def _run_octomap_grasp_sequence(left_arm, right_arm, arm_pub, scene_iface, x_his
     if q_pre is None:
         q_pre = q_grasp
 
-    q_lift = mag._solve_pose_ik(ik_client, arm, is_left_arm, lift_pose, q_grasp, f"[{side}手] 抬升")
-    if q_lift is None:
-        q_lift = q_grasp
+    q_lift, lift_height_m = mag._solve_lift_ik_with_fallback(
+        ik_client, arm, is_left_arm, locked_x, locked_y, locked_z, quat, q_grasp, side
+    )
 
     print("\n🚀 阶段A [硬编码抓取] 曲肘→预瞄→水平插入（auto_grasp_TF2 同款，防碰瓶）")
     print("🚀 阶段B [OctoMap收手]  抬升后 OMPL 碰撞规划（失败→vla外摆）")
@@ -437,7 +436,11 @@ def _run_octomap_grasp_sequence(left_arm, right_arm, arm_pub, scene_iface, x_his
     mag.call_leju_claw(pos, vel, effort, tag="close")
     time.sleep(2.0)
 
-    mag.execute_single_pose(arm_pub, q_lift, 2.0, f"垂直抬升 {int(mag.LIFT_HEIGHT*100)}cm", is_left_arm)
+    if lift_height_m > 0:
+        lift_label = f"垂直抬升 {int(round(lift_height_m * 100))}cm"
+    else:
+        lift_label = "垂直抬升（IK 全失败，保持抓握高度）"
+    mag.execute_single_pose(arm_pub, q_lift, 2.0, lift_label, is_left_arm)
 
     print("\n🗺️ 阶段B：OctoMap + 桌面盒 碰撞感知收手...")
     octomap_retract_after_lift(

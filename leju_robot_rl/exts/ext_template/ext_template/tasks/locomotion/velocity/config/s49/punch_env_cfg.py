@@ -33,8 +33,8 @@ from omni.isaac.lab.terrains import TerrainImporterCfg
 from ext_template.terrains import ROUGH_TERRAINS_CFG
 from ext_template.assets.kuavo import Kuavos49_CFG
 
-# LAFAN1 G1 舞蹈 → Kuavo S49（adapt_lafan1_g1_to_kuavo.py --profile fullbody_inplace）
-DANCE_CSV = "kuavo_action_LAFAN1_g1_dance1_INPLACE_RAD.csv"
+# LAFAN1 G1 舞蹈 → Kuavo S49（adapt_lafan1_g1_to_kuavo.py --profile kuavo_dance）
+DANCE_CSV = "kuavo_action_LAFAN1_g1_dance1_DANCE_RAD.csv"
 
 # RL 仅控制 26 关节（与 S46 USD / 部署 policy / CSV 顺序一致）
 KUAVO_RL_JOINT_NAMES = [
@@ -210,8 +210,8 @@ class RewardsCfg:
         weight=-1.0e-5,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["leg_[l,r]6_joint"])},
     )
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.004)
-    action_smoothness_l2 = RewTerm(func=mdp.action_smoothness_l2, weight=-0.006)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.001)
+    action_smoothness_l2 = RewTerm(func=mdp.action_smoothness_l2, weight=-0.002)
 
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
@@ -258,7 +258,7 @@ class RewardsCfg:
     )
     penalty_foot_pitch = RewTerm(
         func=local_rewards.penalty_foot_pitch_deviation,
-        weight=-6.0,
+        weight=-3.0,
         params={"csv_path": DANCE_CSV},
     )
     contact_force = RewTerm(
@@ -276,29 +276,29 @@ class RewardsCfg:
 
     track_punch_arms = RewTerm(
         func=local_rewards.track_punch_arms_trajectory_upright_exp,
-        weight=12.0,
+        weight=16.0,
         params={
-            "std": 0.38,
+            "std": 0.30,
             "csv_path": DANCE_CSV,
-            "min_upright": 0.88,
-            "min_height": 0.72,
+            "min_upright": 0.85,
+            "min_height": 0.70,
             "target_height": 0.87,
         },
     )
     track_punch_legs = RewTerm(
         func=local_rewards.track_punch_legs_trajectory_upright_exp,
-        weight=6.0,
+        weight=11.0,
         params={
-            "std": 0.42,
+            "std": 0.32,
             "csv_path": DANCE_CSV,
-            "min_upright": 0.88,
-            "min_height": 0.72,
+            "min_upright": 0.85,
+            "min_height": 0.70,
             "target_height": 0.87,
         },
     )
     arm_roll_penalty = RewTerm(
         func=local_rewards.penalty_arm_roll_limit,
-        weight=-3.0,
+        weight=-0.5,
     )
 
 

@@ -51,34 +51,24 @@ G1_ARM_DEFAULT = np.array(
     dtype=np.float64,
 )
 
-# Kuavo S49 in-place dance neutral arms (frame 0 of existing adapted CSV)
-KUAVO_ARM_DEFAULT = np.array(
-    [
-        0.0186,
-        0.1420,
-        -0.0446,
-        -0.2027,
-        0.0439,
-        0.0581,
-        0.0,
-        -0.0272,
-        -0.1283,
-        0.2574,
-        -0.1937,
-        0.0313,
-        -0.0429,
-        0.0,
-    ],
-    dtype=np.float64,
-)
-
 # Map G1 leg side [pitch, roll, yaw, knee, ankle_pitch, ankle_roll]
 # to Kuavo side [roll, yaw, pitch, knee, ankle_pitch, ankle_roll]
 G1_TO_KUAVO_LEG_IDX = (1, 2, 0, 3, 4, 5)
 G1_TO_KUAVO_LEG_SIGN = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0], dtype=np.float64)
 
-# Optional per-joint sign on 14 arm channels (left 7 + right 7)
-G1_TO_KUAVO_ARM_SIGN = np.ones(14, dtype=np.float64)
+# G1 elbow default is +1.57 rad (extended); Kuavo zarm_l4/r4 flex in negative direction.
+ELBOW_FLEX_SCALE = 0.55
+ELBOW_NEUTRAL = -0.25
+WRIST_DELTA_SCALE = 0.45
+
+# Kuavo la2 / ra2 use opposite signed bands (see biped_s49_26dof_lite.urdf).
+KUAVO_LA2_RANGE = (0.05, 1.50)
+KUAVO_RA2_RANGE = (-1.50, -0.05)
+
+ARM_DELTA_BOOST = np.array(
+    [1.10, 1.00, 1.15, 1.05, 1.00, 1.00, 1.00, 1.10, 1.00, 1.15, 1.05, 1.00, 1.00, 1.00],
+    dtype=np.float64,
+)
 
 WAIST_YAW_TO_SHOULDER = 0.35
 
@@ -100,22 +90,23 @@ LEG_LIMITS = np.array(
     dtype=np.float64,
 )
 
+# S49 URDF limits with a small margin for RL tracking.
 ARM_LIMITS = np.array(
     [
-        [-1.8, 1.8],
-        [0.05, 1.5],
-        [-1.5, 1.5],
-        [-1.8, 0.0],
-        [-0.5, 0.5],
-        [-0.5, 0.5],
-        [-0.5, 0.5],
-        [-1.8, 1.8],
-        [-1.5, -0.05],
-        [-1.5, 1.5],
-        [-1.8, 0.0],
-        [-0.5, 0.5],
-        [-0.5, 0.5],
-        [-0.5, 0.5],
+        [-1.55, 1.45],
+        [0.05, 2.00],
+        [-1.45, 1.45],
+        [-2.55, 0.0],
+        [-1.45, 1.45],
+        [-1.25, 0.65],
+        [-0.65, 0.65],
+        [-1.55, 1.45],
+        [-2.00, -0.05],
+        [-1.45, 1.45],
+        [-2.55, 0.0],
+        [-1.45, 1.45],
+        [-0.65, 1.25],
+        [-0.65, 0.65],
     ],
     dtype=np.float64,
 )
@@ -155,20 +146,70 @@ def _rebase_g1_legs(g1_legs: np.ndarray) -> np.ndarray:
     return GEN4_LEG_DEFAULT[None, :] + (mapped - g1_default_mapped[None, :])
 
 
+def _affine01(x: np.ndarray, x0: float, x1: float, y0: float, y1: float) -> np.ndarray:
+    if abs(x1 - x0) < 1e-9:
+        return np.full_like(x, 0.5 * (y0 + y1), dtype=np.float64)
+    t = np.clip((x - x0) / (x1 - x0), 0.0, 1.0)
+    return y0 + t * (y1 - y0)
+
+
+def _map_g1_elbow(g1_elbow: np.ndarray, g1_default: float) -> np.ndarray:
+    """Map G1 extended-positive elbow convention to Kuavo negative-flex convention."""
+    flex = np.clip(g1_default - g1_elbow, 0.0, None)
+    return ELBOW_NEUTRAL - ELBOW_FLEX_SCALE * flex
+
+
+def _map_g1_arm_side(g1_side: np.ndarray, g1_default_side: np.ndarray, roll_range: tuple[float, float]) -> np.ndarray:
+    """Map one 7-DoF G1 arm side to Kuavo zarm side."""
+    out = np.zeros((g1_side.shape[0], 7), dtype=np.float64)
+    out[:, 0] = g1_side[:, 0] - g1_default_side[0]
+    out[:, 1] = _affine01(g1_side[:, 1], g1_side[:, 1].min(), g1_side[:, 1].max(), roll_range[0], roll_range[1])
+    out[:, 2] = g1_side[:, 2] - g1_default_side[2]
+    out[:, 3] = _map_g1_elbow(g1_side[:, 3], g1_default_side[3])
+    for j in (4, 5, 6):
+        out[:, j] = WRIST_DELTA_SCALE * (g1_side[:, j] - g1_default_side[j])
+    return out
+
+
+def _map_g1_arms(g1_arms: np.ndarray) -> np.ndarray:
+    """Semantic G1->Kuavo arm map (roll/elbow conventions differ from simple index rebasing)."""
+    left = _map_g1_arm_side(g1_arms[:, :7], G1_ARM_DEFAULT[:7], KUAVO_LA2_RANGE)
+    right = _map_g1_arm_side(g1_arms[:, 7:14], G1_ARM_DEFAULT[7:14], KUAVO_RA2_RANGE)
+    return np.hstack([left, right])
+
+
+def _boost_arm_delta(arms: np.ndarray) -> np.ndarray:
+    ref = arms[0].copy()
+    return ref + (arms - ref[None, :]) * ARM_DELTA_BOOST[None, :]
+
+
+def _apply_kuavo_dance_profile(traj: np.ndarray, leg_drift_factor: float = 0.55) -> np.ndarray:
+    """Preserve LAFAN1 choreography amplitude; only remove slow leg drift and boost arms."""
+    out = traj.copy()
+    legs = _remove_leg_drift(out[:, :12], factor=leg_drift_factor)
+    arms = _boost_arm_delta(out[:, 12:26])
+    out[:, :12] = legs
+    out[:, 12:26] = arms
+    out = _smooth(out, window=3)
+    out = _clamp_joints(out)
+    return _loop_closure(out)
+
+
 def _g1_to_kuavo_joints(g1_joints: np.ndarray, waist_to_shoulder: float) -> np.ndarray:
     """Convert one frame batch of G1 joint vectors to Kuavo 26-DoF."""
     g1_legs = np.hstack([g1_joints[:, 0:6], g1_joints[:, 6:12]])
     waist_yaw = g1_joints[:, 12]
+    waist_roll = g1_joints[:, 13]
     g1_arms = g1_joints[:, 15:29].copy()
 
     legs = _rebase_g1_legs(g1_legs)
-    arms = KUAVO_ARM_DEFAULT[None, :] + G1_TO_KUAVO_ARM_SIGN[None, :] * (
-        g1_arms - G1_ARM_DEFAULT[None, :]
-    )
+    arms = _map_g1_arms(g1_arms)
 
-    # S49 has no waist; fold torso yaw into symmetric shoulder pitch.
+    # S49 has no waist; fold torso motion into shoulders.
     arms[:, 0] += waist_to_shoulder * waist_yaw
     arms[:, 7] += waist_to_shoulder * waist_yaw
+    arms[:, 1] += 0.20 * waist_roll
+    arms[:, 8] += 0.20 * waist_roll
     return np.hstack([legs, arms])
 
 
@@ -256,20 +297,25 @@ def adapt_lafan1_g1_dance(
         root_quat = _trim_by_time(root_quat, src_fps, start_sec, end_sec)
 
     kuavo = _g1_to_kuavo_joints(g1_joints, waist_to_shoulder)
-    legs = _remove_leg_drift(kuavo[:, :12])
-    kuavo[:, :12] = legs
-    kuavo = _smooth(kuavo, window=3)
-    kuavo = _clamp_joints(kuavo)
-    kuavo = _loop_closure(kuavo)
-    kuavo = _resample(kuavo, src_fps, dst_fps)
 
-    if profile is not None:
-        tools_dir = os.path.dirname(os.path.abspath(__file__))
-        if tools_dir not in sys.path:
-            sys.path.insert(0, tools_dir)
-        from adapt_dance_csv import adapt_dance_trajectory
+    if profile == "kuavo_dance":
+        kuavo = _apply_kuavo_dance_profile(kuavo, leg_drift_factor=0.55)
+        kuavo = _resample(kuavo, src_fps, dst_fps)
+    else:
+        legs = _remove_leg_drift(kuavo[:, :12], factor=0.9)
+        kuavo[:, :12] = legs
+        kuavo = _smooth(kuavo, window=3)
+        kuavo = _clamp_joints(kuavo)
+        kuavo = _loop_closure(kuavo)
+        kuavo = _resample(kuavo, src_fps, dst_fps)
 
-        kuavo = adapt_dance_trajectory(kuavo, profile=profile)
+        if profile is not None:
+            tools_dir = os.path.dirname(os.path.abspath(__file__))
+            if tools_dir not in sys.path:
+                sys.path.insert(0, tools_dir)
+            from adapt_dance_csv import adapt_dance_trajectory
+
+            kuavo = adapt_dance_trajectory(kuavo, profile=profile)
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     if joint_only:
@@ -314,9 +360,9 @@ def main() -> None:
     parser.add_argument("--with-root", action="store_true", help="Export deploy-style CSV with root pose.")
     parser.add_argument(
         "--profile",
-        choices=("inplace", "expressive", "arms_only", "fullbody_inplace"),
-        default=None,
-        help="Optional second pass via adapt_dance_csv.py logic.",
+        choices=("kuavo_dance", "inplace", "expressive", "arms_only", "fullbody_inplace"),
+        default="kuavo_dance",
+        help="kuavo_dance=keep LAFAN1 amplitude (recommended); fullbody_inplace=legacy tiny steps.",
     )
     args = parser.parse_args()
 

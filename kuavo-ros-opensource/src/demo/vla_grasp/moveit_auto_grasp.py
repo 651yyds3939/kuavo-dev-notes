@@ -33,13 +33,15 @@ except ImportError:
 # 🎯 TCP (工具中心点) 与 避障通道参数配置区
 # =================================================================
 # 左右手分别标定（Y>0 选左手，Y<0 选右手）
-TCP_OFFSET_X_LEFT = -0.018      # 左手 X 基准
-TCP_OFFSET_X_RIGHT = -0.024     # 右手仍略偏前，再多回拉 6mm
-TCP_OFFSET_Y_LEFT = 0.020       # 左手偏左 → 减小往右修（原 0.03）
+TCP_OFFSET_X_LEFT = -0.013      # 左手 X：偏后 +5mm → 略往前（原 -0.018）
+TCP_OFFSET_X_RIGHT = -0.022     # 右手 X：偏后 1~2mm → 略往前（原 -0.024）
+TCP_OFFSET_Y_LEFT = 0.004       # 左手 Y：偏左 → 再往右 4mm（原 0.008）
 TCP_OFFSET_Y_RIGHT = 0.065      # 右手往左修
 SAFE_LOCKED_Z = 0.385         # 与 vla_auto_grasp_daemon 一致
 PRE_GRASP_DIST = 0.12        
 LIFT_HEIGHT = 0.22            # 与 vla_auto_grasp_daemon 一致（22cm 拔高避桌）
+# 抬升 IK 无解时按高度递减重试（与 auto_grasp_TF2 单点回退相比，尽量仍完成垂直拔高）
+LIFT_HEIGHT_FALLBACKS_M = (0.22, 0.18, 0.14, 0.10)
 SHOULDER_SWING_AVOID_DEG = 75.0  # vla 同款肩膀关节外摆避障
 CLAW_ROLL_RIGHT = 1.5708  
 CLAW_ROLL_LEFT = -1.5708  
@@ -306,6 +308,26 @@ def _solve_pose_ik(ik_client, arm_group, is_left_arm, pose_stamped, seed_14, ste
                 return result
     rospy.logerr(f"❌ {step_name} IK 无解")
     return None
+
+def _solve_lift_ik_with_fallback(ik_client, arm_group, is_left_arm, locked_x, locked_y, locked_z,
+                                  quat, q_grasp, side_label):
+    """
+    垂直抬升 IK：优先 22cm，无解则 18 → 14 → 10cm；全失败才回退抓握点。
+    返回 (q_lift, lift_height_m)；lift_height_m=0 表示未抬升（用 q_grasp）。
+    """
+    for h in LIFT_HEIGHT_FALLBACKS_M:
+        lift_pose = _build_pose_stamped(locked_x, locked_y, locked_z + h, quat)
+        step_name = f"[{side_label}手] 垂直抬升 {int(round(h * 100))}cm"
+        q_lift = _solve_pose_ik(ik_client, arm_group, is_left_arm, lift_pose, q_grasp, step_name)
+        if q_lift is not None:
+            if h < LIFT_HEIGHT - 1e-6:
+                rospy.logwarn(
+                    "⚠️ 抬升 %dcm IK 无解，降级为 %dcm"
+                    % (int(round(LIFT_HEIGHT * 100)), int(round(h * 100)))
+                )
+            return q_lift, h
+    rospy.logwarn("⚠️ 全部抬升高度 IK 失败，回退使用抓握点（无垂直拔高）")
+    return q_grasp, 0.0
 
 def _build_pose_stamped(x, y, z, quat):
     ps = PoseStamped()
@@ -831,7 +853,6 @@ def _run_grasp_sequence(left_arm, right_arm, arm_pub, x_hist, y_hist):
     pre_y = shoulder_y + (locked_y - shoulder_y) * ratio
     grasp_pose = _build_pose_stamped(locked_x, locked_y, locked_z, quat)
     pre_pose = _build_pose_stamped(pre_x, pre_y, locked_z, quat)
-    lift_pose = _build_pose_stamped(locked_x, locked_y, locked_z + LIFT_HEIGHT, quat)
 
     _, ee_link = _ik_group_profile(is_left_arm)
     try:
@@ -855,10 +876,9 @@ def _run_grasp_sequence(left_arm, right_arm, arm_pub, x_hist, y_hist):
         rospy.logwarn("⚠️ 预瞄点 IK 失败，回退使用抓握点")
         q_pre = q_grasp
 
-    q_lift = _solve_pose_ik(ik_client, arm, is_left_arm, lift_pose, q_grasp, f"[{side}手] 垂直抬升")
-    if q_lift is None:
-        rospy.logwarn("⚠️ 抬升点 IK 失败，回退使用抓握点")
-        q_lift = q_grasp
+    q_lift, lift_height_m = _solve_lift_ik_with_fallback(
+        ik_client, arm, is_left_arm, locked_x, locked_y, locked_z, quat, q_grasp, side
+    )
 
     print("\n🚀 执行: 曲肘护胸 → 预瞄 → 单段水平插入 → 夹爪 → 抬升 → vla收手")
     print("   （与 auto_grasp_TF2 一致：禁止 init 直跳预瞄，否则关节空间先上抬扫瓶）")
@@ -883,7 +903,11 @@ def _run_grasp_sequence(left_arm, right_arm, arm_pub, x_hist, y_hist):
     call_leju_claw(pos, vel, effort, tag="close")
     time.sleep(2.0) 
 
-    execute_single_pose(arm_pub, q_lift, 2.0, f"垂直拔高 {int(LIFT_HEIGHT*100)}cm", is_left_arm)
+    if lift_height_m > 0:
+        lift_label = f"垂直拔高 {int(round(lift_height_m * 100))}cm"
+    else:
+        lift_label = "垂直拔高（IK 全失败，保持抓握高度）"
+    execute_single_pose(arm_pub, q_lift, 2.0, lift_label, is_left_arm)
 
     execute_vla_style_return(arm_pub, q_lift, is_left_arm)
 

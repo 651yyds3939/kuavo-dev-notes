@@ -114,8 +114,8 @@
 | 🔴 | [`14.robot_dance.md`](./kuavo_notes/14.robot_dance.md) | 机器人舞蹈 |
 | 🔴 | [`18.teaching_gravity_compensation.md`](./kuavo_notes/18.teaching_gravity_compensation.md) | 示教 / 重力补偿 |
 | 🔴 | [`26.joint_calibration.md`](./kuavo_notes/26.joint_calibration.md) | 关节标定 |
-| 🟡 | [`27.camera_mtion_capture.md`](./kuavo_notes/27.camera_mtion_capture.md) | 相机 / 动捕 |
-| 🔴 | [`5.up_down_stair.md`](./kuavo_notes/5.up_down_stair.md) | 上下楼梯（真机） |
+| 🟢 / 🟡 | [`27.camera_mtion_capture.md`](./kuavo_notes/27.camera_mtion_capture.md) | 相机 / 动捕（仿真可跑；真机需 Orin 侧） |
+| 🟢 | [`5.up_down_stair.md`](./kuavo_notes/5.up_down_stair.md) | 上下楼梯（仿真已测，真机未测） |
 
 ### 🟡 / 🔴 真机 — 大模型、VLA、语音与人脸
 

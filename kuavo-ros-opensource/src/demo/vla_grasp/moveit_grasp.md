@@ -117,7 +117,7 @@ python3 src/demo/vla_grasp/moveit_octomap_grasp.py
 ────────────────────────────         ────────────────────────────────────
 视觉 TF2+YOLO                        同左
 曲肘→预瞄→插入→抬升  硬编码关节       同左（阶段 A）
-IK                   /compute_ik     同左
+IK                   /compute_ik     同左（抬升 IK 失败→18/14/10cm 递减）
 点云 / OctoMap       ❌               ✅ 仅抬升后阶段 B 收手
 收手                 vla 肩膀外摆      OMPL+点云+桌面盒（失败→vla）
 ```
@@ -125,7 +125,7 @@ IK                   /compute_ik     同左
 | 时机 | 经典版 MoveIt 作用 |
 |------|-------------------|
 | 启动 | 加载 `biped_s49` 模型（URDF collision WARN 此时出现，可忽略） |
-| 抓取前 | `/compute_ik` 算抓握/预瞄/抬升关节角 |
+| 抓取前 | `/compute_ik` 算抓握/预瞄/抬升关节角（抬升走 `_solve_lift_ik_with_fallback`） |
 | 执行 | **不用** OMPL；`execute_single_pose` 直发 `/kuavo_arm_target_poses` |
 | 收手 | **不用** 点云；`execute_vla_style_return()` |
 | 异常 | `_safe_return_both_arms()` 才调 OMPL |
@@ -320,12 +320,13 @@ rostopic hz /camera/depth/color/points
 
 | 参数 | 当前值 | 含义 |
 |------|--------|------|
-| `TCP_OFFSET_X_LEFT` | `-0.018` | 左手 X（负=往后） |
-| `TCP_OFFSET_X_RIGHT` | `-0.024` | 右手 X（略多于左手） |
-| `TCP_OFFSET_Y_LEFT` | `0.020` | 左手 Y（偏左则减小） |
+| `TCP_OFFSET_X_LEFT` | `-0.013` | 左手 X（负=往后） |
+| `TCP_OFFSET_X_RIGHT` | `-0.022` | 右手 X（略多于左手） |
+| `TCP_OFFSET_Y_LEFT` | `0.004` | 左手 Y（偏左则减小） |
 | `TCP_OFFSET_Y_RIGHT` | `0.065` | 右手 Y（偏右则增大） |
 | `SAFE_LOCKED_Z` | `0.385` | 抓握高度 |
-| `LIFT_HEIGHT` | `0.22` | 抬升 22cm |
+| `LIFT_HEIGHT` | `0.22` | 抬升首选 22cm |
+| `LIFT_HEIGHT_FALLBACKS_M` | `(0.22, 0.18, 0.14, 0.10)` | 抬升 IK 无解时递减重试（m） |
 
 OctoMap 配置：`src/kuavo_arm_moveit_config/config/sensors_3d_octomap.yaml`
 

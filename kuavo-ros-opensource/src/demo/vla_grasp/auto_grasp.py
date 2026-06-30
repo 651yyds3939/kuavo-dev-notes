@@ -192,14 +192,28 @@ def main():
     ok, q_pre = solve_ik(ik_client, ik_req, f"步骤 A [{active_arm}退后预瞄]")
     if not ok: q_pre = q_grasp
 
-    # === 逆推规划 D (拉满 20cm 的超高抬升) ===
-    LIFT_HEIGHT = 0.20 
-    ik_req.hand_poses.left_pose.joint_angles = list(q_grasp[:7])
-    ik_req.hand_poses.right_pose.joint_angles = list(q_grasp[7:])
-    if is_left_arm: ik_req.hand_poses.left_pose.pos_xyz = [locked_x, locked_y, locked_z + LIFT_HEIGHT]
-    else: ik_req.hand_poses.right_pose.pos_xyz = [locked_x, locked_y, locked_z + LIFT_HEIGHT]
-    ok, q_lift = solve_ik(ik_client, ik_req, f"步骤 D [高空垂直抬升 20cm]")
-    if not ok: q_lift = q_grasp 
+    # === 逆推规划 D (拉满 20cm 的超高抬升，高度递减回退) ===
+    LIFT_HEIGHT = 0.20
+    LIFT_HEIGHT_FALLBACKS_M = (0.20, 0.16, 0.12, 0.08)
+    q_lift = q_grasp
+    for h in LIFT_HEIGHT_FALLBACKS_M:
+        ik_req.hand_poses.left_pose.joint_angles = list(q_grasp[:7])
+        ik_req.hand_poses.right_pose.joint_angles = list(q_grasp[7:])
+        if is_left_arm:
+            ik_req.hand_poses.left_pose.pos_xyz = [locked_x, locked_y, locked_z + h]
+        else:
+            ik_req.hand_poses.right_pose.pos_xyz = [locked_x, locked_y, locked_z + h]
+        ok, q_try = solve_ik(ik_client, ik_req, f"步骤 D [高空垂直抬升 {int(round(h * 100))}cm]")
+        if ok:
+            q_lift = q_try
+            if h < LIFT_HEIGHT - 1e-6:
+                print(
+                    "⚠️ 抬升 %dcm IK 无解，降级为 %dcm"
+                    % (int(round(LIFT_HEIGHT * 100)), int(round(h * 100)))
+                )
+            break
+    else:
+        print("⚠️ 全部抬升高度 IK 失败，回退使用抓握点（无垂直拔高）")
 
     # === 🌟 修复：逆推规划 E (AI 降级超远撤离，彻底躲开书本) ===
     ik_req.hand_poses.left_pose.joint_angles = list(q_lift[:7])

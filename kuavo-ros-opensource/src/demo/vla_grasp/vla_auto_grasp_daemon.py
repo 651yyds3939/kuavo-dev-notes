@@ -34,6 +34,7 @@ TCP_OFFSET_Y_RIGHT = 0.03
 
 SAFE_LOCKED_Z = 0.385  
 LIFT_HEIGHT = 0.22          # 拔高 22 厘米，彻底升空
+LIFT_HEIGHT_FALLBACKS_M = (0.22, 0.18, 0.14, 0.10)  # 抬升 IK 无解时递减 4cm
 
 CLAW_ROLL_RIGHT = 1.5708  
 CLAW_ROLL_LEFT = -1.5708  
@@ -219,13 +220,26 @@ class VLAGraspStateMachine:
         ok, q_pre = self.solve_ik(ik_req, f"步骤 A [{active_arm}退后预瞄]")
         if not ok: q_pre = q_grasp
 
-        # === 3. 逆推规划 D (垂直抬升起飞点) ===
-        ik_req.hand_poses.left_pose.joint_angles = list(q_grasp[:7])
-        ik_req.hand_poses.right_pose.joint_angles = list(q_grasp[7:])
-        if is_left_arm: ik_req.hand_poses.left_pose.pos_xyz = [locked_x, locked_y, locked_z + LIFT_HEIGHT]
-        else: ik_req.hand_poses.right_pose.pos_xyz = [locked_x, locked_y, locked_z + LIFT_HEIGHT]
-        ok, q_lift = self.solve_ik(ik_req, f"步骤 D [{active_arm}垂直抬升 {int(LIFT_HEIGHT*100)}cm]")
-        if not ok: q_lift = q_grasp 
+        # === 3. 逆推规划 D (垂直抬升起飞点，高度递减回退) ===
+        q_lift = q_grasp
+        for h in LIFT_HEIGHT_FALLBACKS_M:
+            ik_req.hand_poses.left_pose.joint_angles = list(q_grasp[:7])
+            ik_req.hand_poses.right_pose.joint_angles = list(q_grasp[7:])
+            if is_left_arm:
+                ik_req.hand_poses.left_pose.pos_xyz = [locked_x, locked_y, locked_z + h]
+            else:
+                ik_req.hand_poses.right_pose.pos_xyz = [locked_x, locked_y, locked_z + h]
+            ok, q_try = self.solve_ik(ik_req, f"步骤 D [{active_arm}垂直抬升 {int(round(h * 100))}cm]")
+            if ok:
+                q_lift = q_try
+                if h < LIFT_HEIGHT - 1e-6:
+                    print(
+                        "⚠️ 抬升 %dcm IK 无解，降级为 %dcm"
+                        % (int(round(LIFT_HEIGHT * 100)), int(round(h * 100)))
+                    )
+                break
+        else:
+            print("⚠️ 全部抬升高度 IK 失败，回退使用抓握点（无垂直拔高）")
 
         # === 4. 🌟【遵循真理重构步骤 E】🌟 ===
         # 彻底抛弃垃圾笛卡尔IK外移！直接进行 100% 可靠的关节空间大展翅！
