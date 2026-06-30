@@ -1,0 +1,7 @@
+{
+  "markdown.editor.filePaste.copyIntoWorkspace": "mediaFiles",
+  "markdown.copyFiles.destination": {
+    "**/kuavo_notes/**/*.md": "images/${fileName}"
+  },
+  "markdown.copyFiles.overwriteBehavior": "nameIncrement"
+}

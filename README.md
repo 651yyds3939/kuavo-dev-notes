@@ -25,7 +25,7 @@
 
 ## ⚠️ 免责声明 (Disclaimer)
 
-**有必要。** 本仓库大量内容基于乐聚官方开源生态，请务必阅读以下条款：
+本仓库大量内容基于乐聚官方开源生态，请务必阅读以下条款：
 
 * **版权与知识产权：** 乐聚 Kuavo 机器人相关的底层 C++ 控制框架、OCS2/WBC 架构、官方 URDF/USD 模型、ROS 功能包及原始算法逻辑的知识产权均归 **[乐聚机器人 (Leju Robot)](https://gitee.com/leju-robot)** 及其官方开源仓库所有。包括但不限于：
   * [`kuavo-ros-opensource`](https://github.com/LejuRobotics/kuavo-ros-opensource)（下位机）
@@ -68,7 +68,7 @@
 
 ## 📚 核心知识库目录 (Documentation)
 
-完整索引见 [`kuavo_notes/README.md`](./kuavo_notes/README.md)。下列为 **52 篇**根目录 `.md` 的分类索引（不含 [`5功能案例/`](./kuavo_notes/5功能案例/案例目录.md) 内官方案例）。
+完整索引见 [`kuavo_notes/README.md`](./kuavo_notes/README.md)。下列为 **54 篇**根目录 `.md` 的分类索引（不含 [`5功能案例/`](./kuavo_notes/5功能案例/案例目录.md) 内官方案例）。
 
 **标记：** 🟢 无需真机 · 🟡 需真机（单机侧：NUC 或 Orin 任一侧）· 🔴 需真机（双机协同或全身/部署）。Orin/NUC 均为整机算力，详见 [`../README.md`](../README.md)「硬件与阅读门槛」。
 
@@ -91,6 +91,7 @@
 | 🟡 | [`3.map_navigation.md`](./kuavo_notes/3.map_navigation.md) | 地图、FAST_LIO 与 Docker 挂载踩坑 |
 | 🟡 | [`3.1official_navigation.md`](./kuavo_notes/3.1official_navigation.md) | 官方导航案例集成 |
 | 🟡 | [`16.Internet.md`](./kuavo_notes/16.Internet.md) | 上下位机网络配置 |
+| 🟡 | [`33.height_map.md`](./kuavo_notes/33.height_map.md) | Livox + elevation_mapping 高程图 |
 
 ### 🟢 / 🟡 / 🔴 视觉、抓取与 MoveIt
 
@@ -104,6 +105,7 @@
 | 🟡 | [`9.IK.md`](./kuavo_notes/9.IK.md) | 逆运动学 |
 | 🟡 | [`20.gripper_issue.md`](./kuavo_notes/20.gripper_issue.md) | 夹爪安全 |
 | 🔴 | [`28.moveit_grasping.md`](./kuavo_notes/28.moveit_grasping.md) | MoveIt 经典版 / OctoMap 双轨抓取 |
+| 🔴 | [`34.two_arm_coordination.md`](./kuavo_notes/34.two_arm_coordination.md) | 双臂协同：抓瓶 + 拧盖（MoveIt） |
 
 ### 🟡 / 🔴 真机 — 全身、手臂与标定
 
