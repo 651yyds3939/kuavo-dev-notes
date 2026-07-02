@@ -12,6 +12,29 @@
 
 ---
 
+## 持续更新与本地同步
+
+本仓库**会持续更新**（`kuavo_notes/` 实战文档、魔改代码影子目录、RL 子仓等）。若已通过 `git clone` 拉取到本机，日后想获取 GitHub 上的最新内容，在**该仓库根目录**执行：
+
+```bash
+cd /path/to/kuavo-dev-notes   # 改为本机实际路径
+git pull
+```
+
+若本地有未提交修改，`git pull` 可能提示冲突；可先 `git stash` 暂存改动，同步后再 `git stash pop`，或先提交到 fork 再拉取。
+
+**两库并排维护时**（例如 `~/Notes/kuavo-dev-notes` 与 `~/Notes/robotics-notes`），需分别在两个目录各执行一次 `git pull`。通用机器人知识见 [robotics-notes](https://github.com/651yyds3939/robotics-notes)。
+
+**首次克隆本仓库：**
+
+```bash
+git clone https://github.com/651yyds3939/kuavo-dev-notes.git
+cd kuavo-dev-notes
+```
+
+
+---
+
 ## 🔗 工作空间软链接与迁移（作者本机专用，克隆者可跳过）
 
 > **给 GitHub 访客：** 下面两个文件是作者在自己电脑上的**目录整理脚本与说明**（`~/kuavo_all`、`~/Notes` 路径、`logs` 归档等）。 
