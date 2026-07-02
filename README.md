@@ -229,15 +229,32 @@ kuavo-dev-notes/
 ---
 
 
-## 🛠️ 技术栈 (Tech Stack)
+## 🛠️ 技术栈
 
-* **系统：** Ubuntu 20.04 / 22.04 LTS，Docker（RL 部署）
-* **机器人中间件：** ROS Noetic，catkin
-* **仿真与 RL：** Isaac Sim 4.2，Isaac Lab，RSL-RL (PPO)，MuJoCo 3.x
-* **世界模型：** TD-MPC2（`leju_robot_wm`）
-* **视觉：** YOLOv8，OpenCV，TF2，MoveIt / OctoMap
-* **具身交互：** Faster-Whisper，Gemini API，ONNX Runtime（人脸）
-* **部署运行时：** C++14，Python 3，ONNX Runtime，OCS2，WBC
+本仓库在 Kuavo 4 Pro 上覆盖**双机 ROS 控制 → 仿真/RL 训练 → 视觉与 VLA 交互 → ONNX 真机部署**全链路。真机 NUC（`192.168.26.1`）跑下位机，Orin NX（`192.168.26.12`）跑感知与大模型，离线训练在带 NVIDIA GPU 的 Ubuntu 主机完成。
+
+| 领域 | 关键技术 | 本仓库目录 |
+|------|----------|------------|
+| 基础平台 | Ubuntu 20.04/22.04 · Docker（mpc_wbc **v1.3.0**） · Conda · catkin · `ROBOT_VERSION` 42–49 | 全仓 |
+| 开发语言 | **C++17**（`roscpp`、OCS2/WBC、MoveIt、ONNX 推理节点） · **Python 3**（`rospy`、视觉/AI 脚本、LeRobot、Flask 微服务） | 全仓 |
+| 机器人控制 | ROS 1 Noetic · OCS2/MPC · WBC · EtherCAT · `humanoid_controllers` | [`kuavo-ros-opensource/`](./kuavo-ros-opensource/) |
+| 运动规划 | `motion_capture_ik` · MoveIt/TRAC-IK/OMPL · Pinocchio · py_trees | [`kuavo-ros-opensource/`](./kuavo-ros-opensource/) |
+| 仿真 | Gazebo · MuJoCo **3.0.1** · Isaac Sim **4.2.0** | [`kuavo-ros-opensource/`](./kuavo-ros-opensource/) · [`kuavo-rl-opensource/`](./kuavo-rl-opensource/) |
+| 强化学习 | Isaac Lab **1.4.1** · rsl_rl/PPO · Isaac Gym（遗留） · ONNX Runtime 50Hz | [`leju_robot_rl/`](./leju_robot_rl/) · [`kuavo-rl-opensource/`](./kuavo-rl-opensource/) |
+| 世界模型 | TD-MPC2 | [`leju_robot_wm/`](./leju_robot_wm/) |
+| 视觉感知 | YOLOv8 · OpenCV/TF2 · InsightFace · Orbbec/RealSense · AprilTag | [`kuavo_ros_application/`](./kuavo_ros_application/) |
+| 抓取操作 | IK 服务 / MoveIt+OctoMap · LejuClaw · LeRobot ACT | 两机协同 |
+| 导航建图 | FAST-LIO · Livox · elevation_mapping · 官方导航栈 | [`kuavo-ros-opensource/`](./kuavo-ros-opensource/) |
+| 大模型/VLA | Ollama/Qwen2 · Gemini Live · Faster-Whisper/VITS · MCP | [`kuavo_ros_application/`](./kuavo_ros_application/) |
+| 数据调试 | rosbag · LET 数据集 · URDF/USD · Foxglove · 龙门架/急停 | [`kuavo_notes/`](./kuavo_notes/) |
+
+**三条主链路：**
+- **行走 RL：** Isaac Lab 训练 → 导出 `.onnx` → MuJoCo 验证 → NUC 真机加载
+- **视觉抓取：** YOLO 检测 → TF2 转 3D → IK/MoveIt → LejuClaw 闭合
+- **语音 VLA：** ASR/LLM 解析意图 → YOLO 定位 → IK 抓取（双机多终端）
+
+> 闭源含 `hardware_plant`、`humanoid_wbc` 等 `.so`；踩坑实录与版本号细节见 [`kuavo_notes/README.md`](./kuavo_notes/README.md)。
+
 
 ---
 
