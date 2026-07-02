@@ -11,9 +11,9 @@
 - 设置虚假 AprilTag 位置用于测试（ODOM 坐标系）
 - 自动生成左右手臂的抓取关键点
 - 支持三种控制模式：
-  - 关节控制模式 (joint)：关节轨迹控制，直接控制各关节角度
-  - 世界坐标系末端控制 (eef_world)：基于世界坐标系的末端轨迹控制
-  - 基坐标系末端控制 (eef_base)：基于机器人基坐标系的末端轨迹控制
+ - 关节控制模式 (joint)：关节轨迹控制，直接控制各关节角度
+ - 世界坐标系末端控制 (eef_world)：基于世界坐标系的末端轨迹控制
+ - 基坐标系末端控制 (eef_base)：基于机器人基坐标系的末端轨迹控制
 - 使用行为树序列执行：设置标签 → 计算轨迹 → 执行运动
 - 实时状态反馈和可视化
 
@@ -25,9 +25,9 @@
 ## 配置参数
 
 ```python
-TAG_ID = config.pick.tag_id          # AprilTag ID
-FAKE_TAG_POS = (0.50, 0.0, 0.75)    # 虚假标签位置 (x, y, z 米)
-FAKE_TAG_EULER = (90, 0, -90)       # 虚假标签姿态 (roll, pitch, yaw 度)
+TAG_ID = config.pick.tag_id # AprilTag ID
+FAKE_TAG_POS = (0.50, 0.0, 0.75) # 虚假标签位置 (x, y, z 米)
+FAKE_TAG_EULER = (90, 0, -90) # 虚假标签姿态 (roll, pitch, yaw 度)
 ```
 
 ## 启动说明
@@ -38,7 +38,7 @@ FAKE_TAG_EULER = (90, 0, -90)       # 虚假标签姿态 (roll, pitch, yaw 度)
 
 - **Gazebo 仿真**：使用 `load_kuavo_gazebo_sim_wheel.launch`
 ```bash
-cd ~/kuavo-ros-opensource   
+cd ~/kuavo-ros-opensource 
 sudo su
 source devel/setup.bash
 roslaunch humanoid_controllers load_kuavo_gazebo_sim_wheel.launch
@@ -46,7 +46,7 @@ roslaunch humanoid_controllers load_kuavo_gazebo_sim_wheel.launch
 
 - **MuJoCo 仿真**：使用 `load_kuavo_mujoco_sim_wheel.launch`
 ```bash
-cd ~/kuavo-ros-opensource   
+cd ~/kuavo-ros-opensource 
 sudo su
 source devel/setup.bash
 roslaunch humanoid_controllers load_kuavo_mujoco_sim_wheel.launch
@@ -54,7 +54,7 @@ roslaunch humanoid_controllers load_kuavo_mujoco_sim_wheel.launch
 
 - **真实样机**：使用 `load_kuavo_real_wheel.launch`
 ```bash
-cd ~/kuavo-ros-opensource   
+cd ~/kuavo-ros-opensource 
 sudo su
 source devel/setup.bash
 roslaunch humanoid_controllers load_kuavo_real_wheel.launch

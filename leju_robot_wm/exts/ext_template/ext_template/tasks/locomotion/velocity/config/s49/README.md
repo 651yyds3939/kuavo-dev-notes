@@ -33,7 +33,7 @@ bash scripts/tools/setup_s49_training_assets.sh
 
 ```bash
 cd leju_robot_rl
-conda activate isaaclab   # 或你的 Isaac Lab 环境
+conda activate isaaclab # 或你的 Isaac Lab 环境
 bash scripts/tools/run_s49_lafan1_retrain.sh
 ```
 
@@ -51,8 +51,8 @@ bash scripts/tools/batch_convert_lafan1_g1_dance.sh
 bash scripts/tools/setup_s49_training_assets.sh
 rm -rf /tmp/IsaacLab/usd_*
 python3 scripts/rsl_rl/train.py \
-  --task Legged-Isaac-Velocity-Flat-Kuavo-S49-Punch-v0 \
-  --headless --num_envs 4096
+ --task Legged-Isaac-Velocity-Flat-Kuavo-S49-Punch-v0 \
+ --headless --num_envs 4096
 ```
 
 TensorBoard 健康指标（iter ~500+）：
@@ -67,9 +67,9 @@ TensorBoard 健康指标（iter ~500+）：
 
 ```bash
 python scripts/rsl_rl/play.py \
-  --task Legged-Isaac-Velocity-Flat-Kuavo-S49-Play-v0 \
-  --load_run <run_name> \
-  --export_onnx
+ --task Legged-Isaac-Velocity-Flat-Kuavo-S49-Play-v0 \
+ --load_run <run_name> \
+ --export_onnx
 ```
 
 将导出的 `policy.onnx` 重命名为 `policy_s49.onnx`，放入部署目录：
@@ -90,7 +90,7 @@ roslaunch humanoid_controllers load_kuavo_mujoco_sim_dance_s49.launch
 ```bash
 export ROBOT_VERSION=49
 roslaunch humanoid_controllers load_kuavo_mujoco_sim.launch \
-  rl_param:=$(rospack find humanoid_controllers)/config/kuavo_v49/rl/skw_rl_param_dance.info
+ rl_param:=$(rospack find humanoid_controllers)/config/kuavo_v49/rl/skw_rl_param_dance.info
 ```
 
 ## 5. 真机

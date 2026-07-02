@@ -41,7 +41,7 @@
 
 ```bash
 cd kuavo-rl-opensource/kuavo-robot-deploy
-source installed/setup.bash   # 或官方指引
+source installed/setup.bash # 或官方指引
 catkin build humanoid_controllers
 ```
 

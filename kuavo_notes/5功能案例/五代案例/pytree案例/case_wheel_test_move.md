@@ -85,7 +85,7 @@ python3 case_wheel_test_move.py
 ## 使用方法
 
 ```bash
-python3 case_wheel_test_move.py  # 使用默认 cmd_pos_world 模式
+python3 case_wheel_test_move.py # 使用默认 cmd_pos_world 模式
 
 # 指定控制模式
 python3 case_wheel_test_move.py --control-mode cmd_pos_world

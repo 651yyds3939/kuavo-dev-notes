@@ -9,14 +9,14 @@ docker build -f docker/Dockerfile.GPU -t humanoid_control_img:noetic .
 ```
 To run the docker container:
 ```bash
-   docker run -it --rm --net host --gpus all \
-        -v /dev:/dev \
-        --privileged \
-        --group-add=dialout \
-        --ulimit rtprio=99 \
-        --cap-add=sys_nice \
-        -e DISPLAY=$DISPLAY \
-        --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \
-        humanoid_control_img:noetic \
-        bash
+ docker run -it --rm --net host --gpus all \
+ -v /dev:/dev \
+ --privileged \
+ --group-add=dialout \
+ --ulimit rtprio=99 \
+ --cap-add=sys_nice \
+ -e DISPLAY=$DISPLAY \
+ --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \
+ humanoid_control_img:noetic \
+ bash
 ```

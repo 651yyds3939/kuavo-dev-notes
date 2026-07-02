@@ -8,28 +8,28 @@ OCS2 is a huge monorepo; **DO NOT** try to compile the whole repo. You only need
 its dependencies following the step below.
 
 1. You are supposed to clone the OCS2, pinocchio, and hpp-fcl as described in the documentation of OCS2.
-   ```bash
-   # Clone OCS2
-   git clone https://github.com/leggedrobotics/ocs2.git
-   # Clone pinocchio
-   git clone --recurse-submodules https://github.com/leggedrobotics/pinocchio.git
-   # Clone hpp-fcl
-   git clone --recurse-submodules https://github.com/leggedrobotics/hpp-fcl.git
-   # Clone ocs2_robotic_assets
-   git clone https://github.com/leggedrobotics/ocs2_robotic_assets.git
-   # Install dependencies
-   sudo apt install liburdfdom-dev liboctomap-dev libassimp-dev
-   ```
+ ```bash
+ # Clone OCS2
+ git clone https://github.com/leggedrobotics/ocs2.git
+ # Clone pinocchio
+ git clone --recurse-submodules https://github.com/leggedrobotics/pinocchio.git
+ # Clone hpp-fcl
+ git clone --recurse-submodules https://github.com/leggedrobotics/hpp-fcl.git
+ # Clone ocs2_robotic_assets
+ git clone https://github.com/leggedrobotics/ocs2_robotic_assets.git
+ # Install dependencies
+ sudo apt install liburdfdom-dev liboctomap-dev libassimp-dev
+ ```
 2. Compile the `ocs2_legged_robot_ros` package with [catkin tools](https://catkin-tools.readthedocs.io/en/latest/)
-   instead of `catkin_make`. It will take you about ten minutes.
-   
-   ```bash
-   catkin config -DCMAKE_BUILD_TYPE=RelWithDebInfo #important
-   catkin build ocs2_legged_robot_ros ocs2_self_collision_visualization
-   ```
-   Ensure you can command the ANYmal as shown in
-   the [document](https://leggedrobotics.github.io/ocs2/robotic_examples.html#legged-robot) and below.
-   ![](./README.assets/legged_robot.gif)
+ instead of `catkin_make`. It will take you about ten minutes.
+ 
+ ```bash
+ catkin config -DCMAKE_BUILD_TYPE=RelWithDebInfo #important
+ catkin build ocs2_legged_robot_ros ocs2_self_collision_visualization
+ ```
+ Ensure you can command the ANYmal as shown in
+ the [document](https://leggedrobotics.github.io/ocs2/robotic_examples.html#legged-robot) and below.
+ ![](./README.assets/legged_robot.gif)
 
 ### Mujoco
 
@@ -84,9 +84,9 @@ z &= [-\mathbf{pos_{local,c}}^T, \mathbf{vel_{b}}^T,\mathbf{height_c}^T]^T = [-\
 \end{split}
 $$
 
-Where the subscript $b$ refers to the trunk, subscript $c$ refers to the  foot-end contact point, and subscript $local$ refers to the quantity in the trunk coordinate system. 
+Where the subscript $b$ refers to the trunk, subscript $c$ refers to the foot-end contact point, and subscript $local$ refers to the quantity in the trunk coordinate system. 
 
-In the state estimator, $z$ is obtained from the robot's kinematics, and only the kinematics of the supporting foot is trusted. The noise parameters related to the  swinging foot will be set to a very large 'distrust value.' At this  time, since the state equation only accepts updates from the  accelerometer, and the Q parameter for the supporting foot is much  smaller than that for the swinging foot, it is possible to achieve an  estimation where the position of the supporting foot remains unchanged,  and the position changes when it switches to the swinging foot.  Moreover, since only the dynamics of the supporting foot are trusted,  the height and velocity measurement of the foot can be directly set to 0.
+In the state estimator, $z$ is obtained from the robot's kinematics, and only the kinematics of the supporting foot is trusted. The noise parameters related to the swinging foot will be set to a very large 'distrust value.' At this time, since the state equation only accepts updates from the accelerometer, and the Q parameter for the supporting foot is much smaller than that for the swinging foot, it is possible to achieve an estimation where the position of the supporting foot remains unchanged, and the position changes when it switches to the swinging foot. Moreover, since only the dynamics of the supporting foot are trusted, the height and velocity measurement of the foot can be directly set to 0.
 
 ### NMPC
 
@@ -107,7 +107,7 @@ constraints} \\
 \end{cases}\end{split}
 $$
 
-In this framework, the system state $\mathbf{x}$ and system input $\mathbf{u}$ are defined by  the OCS2 Centroidal Model, eliminating the need for us to manually define them. The definition of $\mathbf{x}$  and $\mathbf{u}$ according to OCS2 is as follows:
+In this framework, the system state $\mathbf{x}$ and system input $\mathbf{u}$ are defined by the OCS2 Centroidal Model, eliminating the need for us to manually define them. The definition of $\mathbf{x}$ and $\mathbf{u}$ according to OCS2 is as follows:
 
 $$
 \begin{equation} \mathbf{x}= [\mathbf{h}_{com}^T, \mathbf{q}_b^T, \mathbf{q}_j^T]^T,
@@ -116,7 +116,7 @@ $$
 
 where $\mathbf{h}_{com} \in \mathbb{R}^6$ is the collection of the normalized centroidal momentum, $\mathbf{q}=[\mathbf{q}_b^T, \mathbf{q}_j^T]^T$ is the positions of the generalized coordinate, which $\mathbf{q}_b^T$ is the 6-dof position of base, $\mathbf{q}_j^T$ is the postion of every joint. In this framework, the dimension of $\mathbf{x}$ is 24.
 
-$\mathbf{f}_c \in \mathbb{R}^{12}$ consists of contact forces at four contact points. In this framework, we define four 3-dof contact points which refer to the toe and heel of left and right feet.  $\mathbf{v}_j$ is the joint velocities.
+$\mathbf{f}_c \in \mathbb{R}^{12}$ consists of contact forces at four contact points. In this framework, we define four 3-dof contact points which refer to the toe and heel of left and right feet. $\mathbf{v}_j$ is the joint velocities.
 While the cost function is simply the quadratic cost of tracking the error of all states and the input, the system
 dynamics uses centroidal dynamics with the following constraints:
 
@@ -150,18 +150,18 @@ $$
 
 where $\mathbf{a}_{b}^T \in \mathbb{R}^6$ is the base acceleration, $\mathbf{a}_j^T \in \mathbb{R}^{12}$ is the joint acceleration, $\mathbf{f}_c^T \in \mathbb{R}^{12}$ is the contact force and $\mathbf{T}_j^T \in \mathbb{R}^{12}$ is the joint torque. 
 
-In weighted WBC, a portion of the tasks serves as weighted costs,  providing the optimization problem's $H$ and $g(w_0)$. Another portion  of the tasks serves as constraints, providing $A$, $lbA$, $ubA$, $lb$,  and $ub$. The definition of the tasks is shown in the following table.
+In weighted WBC, a portion of the tasks serves as weighted costs, providing the optimization problem's $H$ and $g(w_0)$. Another portion of the tasks serves as constraints, providing $A$, $lbA$, $ubA$, $lb$, and $ub$. The definition of the tasks is shown in the following table.
 
-| Type       | Task                                                         |
+| Type | Task |
 | ---------- | ------------------------------------------------------------ |
-| cost       | Base XY linear acceleration task                             |
-| cost       | Base Z position task (using PD controller to estimate the acceleration) |
-| cost       | Base Angular task (using PD controller to estimate the acceleration) |
-| cost       | Swing leg position task (using PD controller to estimate the acceleration) |
-| cost       | Contact force task                                           |
-| constraint | Floating base EOM task                                       |
-| constraint | Torque limit task                                            |
-| constraint | Friction cone task                                           |
+| cost | Base XY linear acceleration task |
+| cost | Base Z position task (using PD controller to estimate the acceleration) |
+| cost | Base Angular task (using PD controller to estimate the acceleration) |
+| cost | Swing leg position task (using PD controller to estimate the acceleration) |
+| cost | Contact force task |
+| constraint | Floating base EOM task |
+| constraint | Torque limit task |
+| constraint | Friction cone task |
 
 Every task is defined as a quadruple $\left(A, b, D, f\right)$ where
 
@@ -181,11 +181,11 @@ For equality constrained task, we have $A_{qp} = A,lbA=b, ubA=b$
 
 For non-equality constrained task, we have $A_{qp} = D,lbA=-\infty, ubA=f$
 
-The stacking of tasks is defined as the concatenation of the matrices $A$, $b$, $D$, and $f$. Once multiple tasks are stacked, the parameters of the QP  problem are obtained using the aforementioned formula. The qpOASES solver is then used to solve the problem.
+The stacking of tasks is defined as the concatenation of the matrices $A$, $b$, $D$, and $f$. Once multiple tasks are stacked, the parameters of the QP problem are obtained using the aforementioned formula. The qpOASES solver is then used to solve the problem.
 
 ### PD controller
 
-Obtain optimized joint positions and joint velocities from MRT (Model  Reference Tracking), obtain joint accelerations and joint torques from  WBC (Whole Body Control), and feed them into a PD controller after  processing. MRT, based on the trajectory optimized by NMPC, obtains the optimized states and inputs at a high frequency.
+Obtain optimized joint positions and joint velocities from MRT (Model Reference Tracking), obtain joint accelerations and joint torques from WBC (Whole Body Control), and feed them into a PD controller after processing. MRT, based on the trajectory optimized by NMPC, obtains the optimized states and inputs at a high frequency.
 
 $$
 \begin{split}
@@ -199,13 +199,13 @@ where $t$ is the WBC period.
 
 ### Frequency
 
-| Module         | Frequency |
+| Module | Frequency |
 | -------------- | --------- |
-| NMPC           | 100Hz     |
-| MRT            | 500Hz     |
-| WBC            | 500Hz     |
-| PD Controller  | >1000Hz   |
-| State Estimate | 500Hz     |
+| NMPC | 100Hz |
+| MRT | 500Hz |
+| WBC | 500Hz |
+| PD Controller | >1000Hz |
+| State Estimate | 500Hz |
 
 **To ensure the speed of the program, it is crucial that you optimize the code at least to the RelWithDebInfo level. This is highly important!**
 

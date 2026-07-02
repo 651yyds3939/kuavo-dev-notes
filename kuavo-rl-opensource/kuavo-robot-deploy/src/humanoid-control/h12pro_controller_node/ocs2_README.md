@@ -101,35 +101,35 @@ rostopic echo /h12pro_channel
 状态转换如下：
 
 1. 从 initial 状态:
-   - `initial_pre` -> ready_stance
-   - `calibrate` -> calibrate
+ - `initial_pre` -> ready_stance
+ - `calibrate` -> calibrate
 
 2. 从 ready_stance 状态:
-   - `ready_stance` -> stance
-   - `stop` -> initial
+ - `ready_stance` -> stance
+ - `stop` -> initial
 
 3. 从 stance 状态:
-   - `walk` -> walk
-   - `trot` -> trot
-   - `arm_pose1/2/3/4` -> stance (手臂姿态控制)
-   - `stop` -> initial
-   - `start_vr_remote_control` -> vr_remote_control
+ - `walk` -> walk
+ - `trot` -> trot
+ - `arm_pose1/2/3/4` -> stance (手臂姿态控制)
+ - `stop` -> initial
+ - `start_vr_remote_control` -> vr_remote_control
 
 4. 从 walk 状态:
-   - `stance` -> stance
-   - `trot` -> trot
-   - `stop` -> initial
+ - `stance` -> stance
+ - `trot` -> trot
+ - `stop` -> initial
 
 5. 从 trot 状态:
-   - `stance` -> stance
-   - `walk` -> walk
-   - `stop` -> initial
+ - `stance` -> stance
+ - `walk` -> walk
+ - `stop` -> initial
 
 6. 从 vr_remote_control 状态:
-   - `stop_vr_remote_control` -> stance
-   - `stop` -> initial
-   - `record_vr_rosbag` -> vr_remote_control
-   - `stop_record_vr_rosbag` -> vr_remote_control
+ - `stop_vr_remote_control` -> stance
+ - `stop` -> initial
+ - `record_vr_rosbag` -> vr_remote_control
+ - `stop_record_vr_rosbag` -> vr_remote_control
 
 ## 3. 遥控器配置
 
@@ -192,7 +192,7 @@ rostopic echo /h12pro_channel
 
 | 目标状态 | 按键组合 | 开关位置 |
 |---------|---------|---------|
-| stance  | B_LONG_PRESS | 任意 |
+| stance | B_LONG_PRESS | 任意 |
 | initial | C_LONG_PRESS + D_LONG_PRESS | 任意 |
 | record_vr_rosbag | C_PRESS | 任意 |
 | stop_record_vr_rosbag | D_PRESS | 任意 |
@@ -207,22 +207,22 @@ rostopic echo /h12pro_channel
 - VR 录制的 rosbag 文件存放在 `~/.log/vr_remote_control/rosbag` 路径下, 按照日期和时间命名
 - VR 录制指定的话题配置文件存放在 `<kuavo-ros-control>/src/humanoid-control/h12pro_controller_node/config/record_topics.json` 路径下
 - 指定录制的话题如下：
-  - `/kuavo_arm_traj` #手臂关节值
-  - `/control_robot_hand_position` #手指
-  - `/robot_head_motion_data` #头部
+ - `/kuavo_arm_traj` #手臂关节值
+ - `/control_robot_hand_position` #手指
+ - `/robot_head_motion_data` #头部
 
-  - 深度相机
-    - `/camera/depth/image_rect_raw` # 深度相机图像
-    - `/camera/depth/camera_info`    # 深度相机内参（由realsense出厂前设置标定好）
-    - `/camera/depth/color/points`   # 带有深度的RGB点云（Point2D）
+ - 深度相机
+ - `/camera/depth/image_rect_raw` # 深度相机图像
+ - `/camera/depth/camera_info` # 深度相机内参（由realsense出厂前设置标定好）
+ - `/camera/depth/color/points` # 带有深度的RGB点云（Point2D）
 
-  - RGB相机
-    - `/camera/color/image_raw`    # RGB相机图像
-    - `/camera/color/camera_info`  # RGB相机内参（由realsense出厂前设置标定好）
+ - RGB相机
+ - `/camera/color/image_raw` # RGB相机图像
+ - `/camera/color/camera_info` # RGB相机内参（由realsense出厂前设置标定好）
 
-  - 深度对齐RGB相机
-    - `/camera/aligned_depth_to_color/image_raw`   # 深度对齐RGB后的深度图像
-    - `/camera/aligned_depth_to_color/camera_info` # 深度对齐RGB后的相机内参
+ - 深度对齐RGB相机
+ - `/camera/aligned_depth_to_color/image_raw` # 深度对齐RGB后的深度图像
+ - `/camera/aligned_depth_to_color/camera_info` # 深度对齐RGB后的相机内参
 
 
 ### 3.2 摇杆配置

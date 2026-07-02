@@ -1,6 +1,6 @@
 # Teleop 动捕遥操作问题记录
 
-本文档按时间线整理 `teleop_math_solver.py` 与 `teleop_geometric_ik_fusion.py` 开发调试过程中遇到的问题、原因分析与最终解法。  
+本文档按时间线整理 `teleop_math_solver.py` 与 `teleop_geometric_ik_fusion.py` 开发调试过程中遇到的问题、原因分析与最终解法。 
 当前推荐使用 **`teleop_math_solver.py`（3D 球坐标版）**；IK 融合版仍不建议作为主方案。
 
 ---
@@ -103,7 +103,7 @@ MediaPipe 每帧有噪声，50Hz 直接发关节角会高频抖动。
 ### 原因（非 URDF 限制）
 ```xml
 <!-- zarm_l4_joint 肘关节 -->
-<limit lower="-2.618" upper="0.0" />  <!-- -150° ~ 0° -->
+<limit lower="-2.618" upper="0.0" /> <!-- -150° ~ 0° -->
 ```
 URDF 允许弯到 **150°**，不是 90° 卡死。
 
@@ -121,28 +121,28 @@ URDF 允许弯到 **150°**，不是 90° 卡死。
 ## 阶段七：胸前模式检测与映射（逐步修正）
 
 ### 7.1 检测从未触发
-**日志**：`p:-90  y:0  [无左胸]`  
-**原因**：旧条件 `yz_norm < 0.08` 太严，大臂仍有 z 分量  
+**日志**：`p:-90 y:0 [无左胸]` 
+**原因**：旧条件 `yz_norm < 0.08` 太严，大臂仍有 z 分量 
 **解法**：改为「前臂近水平（x-z 主导）+ 肘弯 > ~40°」
 
 ### 7.2 yaw = 90 导致小臂竖直
-**日志**：`p:0  r:34  y:90  e:-107  [左胸]`  
-**原因**：把前臂水平角误映射到肩 yaw=90°，肘弯平面变竖直  
+**日志**：`p:0 r:34 y:90 e:-107 [左胸]` 
+**原因**：把前臂水平角误映射到肩 yaw=90°，肘弯平面变竖直 
 **解法**：胸前模式 **yaw 改由「前臂与大臂水平朝向差」** 计算，并限制在 ±57° 内；后证实 yaw=0 + 中等 roll 组合更合适
 
 ### 7.3 roll = 120 导致方向错误
-**日志**：`p:0  r:120  y:0  e:-97  [左胸]`  
-**原因**：roll 顶满 120° 是夸父**向外侧举**的极限，不是横过胸前  
+**日志**：`p:0 r:120 y:0 e:-97 [左胸]` 
+**原因**：roll 顶满 120° 是夸父**向外侧举**的极限，不是横过胸前 
 **解法**：roll 用原版 `atan2(x, yz)`（约 30°~50°），配合 pitch + yaw，不再强行放大 roll
 
 ### 7.4 最终胸前模式逻辑（当前）
 ```
 检测：前臂 x-z 平面占比高 + 肘弯 > 40° + 滞后防抖（6 帧进 / 12 帧出）
 映射：
-  pitch = atan2(z, hypot(x,y))  限制在 ±25°~±30°
-  roll  = atan2(x, yz)          中等值，不过 120°
-  yaw   = fore_az - upper_az    让肘弯平面躺到胸前
-  wrist_yaw = 由前臂水平朝向微调（仅胸前）
+ pitch = atan2(z, hypot(x,y)) 限制在 ±25°~±30°
+ roll = atan2(x, yz) 中等值，不过 120°
+ yaw = fore_az - upper_az 让肘弯平面躺到胸前
+ wrist_yaw = 由前臂水平朝向微调（仅胸前）
 ```
 
 ---
@@ -197,9 +197,9 @@ URDF 允许弯到 **150°**，不是 90° 卡死。
 
 ### ROS 参数
 ```bash
-_filter_alpha:=0.35    # 低通滤波，越小越平滑
-_elbow_gain:=1.2       # 肘弯放大（>60° 部分）
-_swap_arms:=false      # 左右反了时设 true
+_filter_alpha:=0.35 # 低通滤波，越小越平滑
+_elbow_gain:=1.2 # 肘弯放大（>60° 部分）
+_swap_arms:=false # 左右反了时设 true
 ```
 
 ### 已知局限（无法靠 math 版完全解决）
@@ -233,7 +233,7 @@ _swap_arms:=false      # 左右反了时设 true
 
 ## 附录：IK 融合版（`teleop_geometric_ik_fusion.py`）专项记录
 
-> 本节为 2026-06 后续调试补充，记录 IK 版的原理、踩坑与最终解法。  
+> 本节为 2026-06 后续调试补充，记录 IK 版的原理、踩坑与最终解法。 
 > **上文阶段一至阶段九、文件说明等原有内容保持不变。**
 
 ---
@@ -298,7 +298,7 @@ z ≈ 0.2–0.3 m 对应机器人**胸前高度**，与「手放下」不符。
 
 #### 为什么 IK 显示 success 但动作仍错？
 
-IK 只保证「当前关节角 → 算出的末端位姿」与「你给的目标位姿」接近。  
+IK 只保证「当前关节角 → 末端位姿」与目标位姿接近。 
 目标本身错了，IK 越成功，机器人离真人动作越远。这是**前端映射错误**，不是 `/ik/two_arm_hand_pose_cmd_srv` 坏了。
 
 ---
@@ -362,8 +362,8 @@ IK 只保证「当前关节角 → 算出的末端位姿」与「你给的目标
 #### 腕部保护逻辑
 
 ```python
-WRIST_JOINT_IDX = [5, 6, 12, 13]   # 左腕 yaw/roll/pitch、右腕 yaw/roll
-CORE_JOINT_IDX  = [0,1,2,3, 7,8,9,10]  # 肩肘核心，不被 IK 拉偏
+WRIST_JOINT_IDX = [5, 6, 12, 13] # 左腕 yaw/roll/pitch、右腕 yaw/roll
+CORE_JOINT_IDX = [0,1,2,3, 7,8,9,10] # 肩肘核心，不被 IK 拉偏
 
 # ik_wrist_only=true（默认）时：
 # 仅当 |ik_deg[i] - geo_deg[i]| < 40° 才采纳 IK 的腕部值
@@ -378,14 +378,14 @@ CORE_JOINT_IDX  = [0,1,2,3, 7,8,9,10]  # 肩肘核心，不被 IK 拉偏
 python3 teleop_geometric_ik_fusion.py
 
 # 显式参数
-_filter_alpha:=0.35      # 低通，同 math 版
-_elbow_gain:=1.2          # 肘弯增益，同 math 版
-_swap_arms:=false         # 左右反了时 true
-_use_ik:=false            # 默认关闭 IK（推荐）
-_ik_wrist_only:=true      # 开启 IK 时仅微调腕部
-_ik_interval:=3           # 每 N 帧调一次 IK，减轻阻塞
+_filter_alpha:=0.35 # 低通，同 math 版
+_elbow_gain:=1.2 # 肘弯增益，同 math 版
+_swap_arms:=false # 左右反了时 true
+_use_ik:=false # 默认关闭 IK（推荐）
+_ik_wrist_only:=true # 开启 IK 时仅微调腕部
+_ik_interval:=3 # 每 N 帧调一次 IK，减轻阻塞
 _ik_service:=/ik/two_arm_hand_pose_cmd_srv_muli_refer
-_fk_dof:=14               # FK 请求关节维数
+_fk_dof:=14 # FK 请求关节维数
 ```
 
 可选开启腕部 IK：

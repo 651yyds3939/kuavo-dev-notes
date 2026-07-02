@@ -10,7 +10,7 @@
 
 **尚未完成：** 策略在仿真与真机上的**稳定性与观感仍未达到作者预期**（尤其 S49 舞蹈 mimic 质量、部分行走 checkpoint）。奖励权重、域随机化、动作 CSV 与 S49 任务配置**仍在快速改动**，提交历史可能较乱。
 
-**你可以在此基础上：**
+**可在此基础上：**
 
 - 改 `exts/.../mdp/rewards.py` 与各 `*env_cfg.py` 中的 `RewTerm` / `weight`
 - 替换或新增根目录 `kuavo_action_*.csv`（见 [`23.2`](../kuavo_notes/23.2.RL_dance_motion_data.md)）
@@ -54,10 +54,10 @@ pip install -e exts/ext_template
 cd leju_robot_rl
 conda activate isaaclab
 bash scripts/tools/setup_s49_training_assets.sh
-bash scripts/tools/run_s49_lafan1_retrain.sh   # 转换 CSV + 训练
+bash scripts/tools/run_s49_lafan1_retrain.sh # 转换 CSV + 训练
 ```
 
-TensorBoard：`logs/rsl_rl/Kuavo/s49/dance/`  
+TensorBoard：`logs/rsl_rl/Kuavo/s49/dance/` 
 导出 ONNX 后拷贝至 `kuavo-rl-opensource/kuavo-robot-deploy/.../networks/`。
 
 细节见 **s49/README.md** 与 **kuavo_notes/23.3–23.6**。

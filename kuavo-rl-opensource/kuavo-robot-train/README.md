@@ -7,7 +7,7 @@
 ## isaacgym
 ```bash
 wget https://developer.nvidia.com/isaac-gym-preview-4
-tar -xvzf isaac-gym-preview-4  #将名字改为 isaacgym 并存放在'kuavo-robot-train'同级目录下
+tar -xvzf isaac-gym-preview-4 #将名字改为 isaacgym 并存放在'kuavo-robot-train'同级目录下
 ```
 ## conda
 推荐使用MiniConda，轻量化使用更灵活。
@@ -75,4 +75,4 @@ python scripts/play.py --task=kuavo_s42_sk_ppo --run_name v1 --load_run Feb07_11
 | `--seed` | int | 固定随机种子 | 实验可复现性保障 |
 
 #### 5. 参数优先级逻辑
-  - 命令行参数 > 配置文件 > 代码默认值
+ - 命令行参数 > 配置文件 > 代码默认值

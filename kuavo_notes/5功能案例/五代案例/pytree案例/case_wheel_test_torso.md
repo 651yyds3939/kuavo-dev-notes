@@ -20,8 +20,8 @@
 ## 配置参数
 
 ```python
-TORSO_TARGET_POS = (0.2, 0.0, 0.5)      # 目标位置 (x, y, z 米)
-TORSO_TARGET_EULER = (0.0, 10°, 90°)    # 目标姿态 (roll, pitch, yaw 度)
+TORSO_TARGET_POS = (0.2, 0.0, 0.5) # 目标位置 (x, y, z 米)
+TORSO_TARGET_EULER = (0.0, 10°, 90°) # 目标姿态 (roll, pitch, yaw 度)
 ```
 
 ## 启动说明

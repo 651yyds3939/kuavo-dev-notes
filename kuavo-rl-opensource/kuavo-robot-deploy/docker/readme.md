@@ -16,12 +16,12 @@ Note:
 - If you are not in mainland China, maybe U need to comment out the following code:
 ```dockerfile
 RUN apt-get update -y && apt-get install ca-certificates -y && \
-    sh -c 'echo "deb https://mirrors.ustc.edu.cn/ubuntu/ focal main restricted universe multiverse\ndeb https://mirrors.ustc.edu.cn/ubuntu/ focal-updates main restricted universe multiverse\ndeb https://mirrors.ustc.edu.cn/ubuntu/ focal-backports main restricted universe multiverse\ndeb https://mirrors.ustc.edu.cn/ubuntu/ focal-security main restricted universe multiverse" > /etc/apt/sources.list' && \
-    apt-get update -y && DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata && \
-    apt-get install -y dirmngr gnupg2 && \
-    sh -c 'echo "deb http://mirrors.ustc.edu.cn/ros/ubuntu/ focal main" > /etc/apt/sources.list.d/ros-latest.list' && \
-    apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654 &&\
-    rm -rf /var/lib/apt/lists/*
+ sh -c 'echo "deb https://mirrors.ustc.edu.cn/ubuntu/ focal main restricted universe multiverse\ndeb https://mirrors.ustc.edu.cn/ubuntu/ focal-updates main restricted universe multiverse\ndeb https://mirrors.ustc.edu.cn/ubuntu/ focal-backports main restricted universe multiverse\ndeb https://mirrors.ustc.edu.cn/ubuntu/ focal-security main restricted universe multiverse" > /etc/apt/sources.list' && \
+ apt-get update -y && DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata && \
+ apt-get install -y dirmngr gnupg2 && \
+ sh -c 'echo "deb http://mirrors.ustc.edu.cn/ros/ubuntu/ focal main" > /etc/apt/sources.list.d/ros-latest.list' && \
+ apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654 &&\
+ rm -rf /var/lib/apt/lists/*
 ```
 - change timezone by your location if U are not in mainland China.
 ```dockerfile
@@ -30,7 +30,7 @@ ENV TZ=Asia/Shanghai
 - Due to some reasons, I can't install crocoddyl in my computer, so I comment it out. But U could try to uncomment it.
 ```dockerfile
 RUN pip3 install --user crocoddyl \
-    && pip3 install meshcat
+ && pip3 install meshcat
 ```
 
 ```bash
@@ -48,16 +48,16 @@ docker build -f Dockerfile.GPU -t humanoid_control_img:noetic .
 ```
 To run the docker container:
 ```bash
-   docker run -it --rm --net host --gpus all \
-        -v /dev:/dev \
-        --privileged \
-        --group-add=dialout \
-        --ulimit rtprio=99 \
-        --cap-add=sys_nice \
-        -e DISPLAY=$DISPLAY \
-        --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \
-        humanoid_control_img:noetic \
-        bash
+ docker run -it --rm --net host --gpus all \
+ -v /dev:/dev \
+ --privileged \
+ --group-add=dialout \
+ --ulimit rtprio=99 \
+ --cap-add=sys_nice \
+ -e DISPLAY=$DISPLAY \
+ --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \
+ humanoid_control_img:noetic \
+ bash
 ```
 ## 4.Build Docker Container for Kuavo-MPC-WBC
 Use following command to run docker container for Kuavo-MPC-WBC. We bind the current directory to the container's `/root/kuavo_ws` directory, which is the workspace for Kuavo-MPC-WBC.
@@ -112,7 +112,7 @@ Note:
 - Pinocchio and hpp-fcl have been installed in the docker image, so we do `NOT` need to install them again😼.
 - The default ROBOT_VERSION of kuavo is 34, U can change it in `~/.zshrc`. 
 <!-- ### Run 
-Please refer to other readme files for running the demo in detail.  -->
+Please refer to other readme files for running the demo in detail. -->
 
 # Test
 ## 1. Mujoco simulator

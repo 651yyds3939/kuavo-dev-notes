@@ -1,7 +1,7 @@
 # 工作空间软链接拓扑与维护手册
 
-> **给 GitHub 访客：** 本文档描述的是**作者个人电脑**上的目录布局（`~/Notes/kuavo-dev-notes`、`~/kuavo_all/_training_logs` 等）。  
-> **克隆本仓库阅读笔记与代码时，可以整篇跳过**；不必按此配置软链接。  
+> **给 GitHub 访客：** 本文档描述的是**作者个人电脑**上的目录布局（`~/Notes/kuavo-dev-notes`、`~/kuavo_all/_training_logs` 等）。 
+> **克隆本仓库阅读笔记与代码时，可以整篇跳过**；不必按此配置软链接。 
 > 配套脚本 [`automove_and_link.sh`](./automove_and_link.sh) 同样仅服务于作者本机维护，**非必读；克隆本仓库时可跳过**。
 
 > **作者自用一句话：** 源码在 `~/Notes/kuavo-dev-notes`，训练 log/video 在 `~/kuavo_all/_training_logs`，终端从 `~/kuavo_all` 进入。自动化请用脚本，不要手抄命令。
@@ -94,8 +94,8 @@ Isaac Lab / RSL-RL 认 `./logs/rsl_rl/...` 路径，**归档时必须整棵 `mv`
 
 ## 5. 三条铁律（防止套娃乱）
 
-1. **挪整个仓库目录** → 只动 `kuavo-dev-notes` 整包，再 `link-repos` 改入口链。  
-2. **挪 log/video** → 只动 `_training_logs`，再 `archive-logs` / `archive-videos` 重挂链。  
+1. **挪整个仓库目录** → 只动 `kuavo-dev-notes` 整包，再 `link-repos` 改入口链。 
+2. **挪 log/video** → 只动 `_training_logs`，再 `archive-logs` / `archive-videos` 重挂链。 
 3. **不要**只拖中间某一层（例如只挪 `leju_robot_rl` 不更新 `kuavo_all` 的链）。
 
 挪之前先看链：

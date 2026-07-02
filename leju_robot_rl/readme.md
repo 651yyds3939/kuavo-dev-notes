@@ -55,8 +55,8 @@
 
 ### 本仓库内自定义奖励公式
 
-- **`exts/ext_template/ext_template/tasks/locomotion/velocity/mdp/rewards.py`**  
-  Kuavo / 双足相关自定义项，例如：`feet_air_time_clip`、`feet_slide`、`track_lin_vel_xy_yaw_frame_exp`、`track_ang_vel_z_world_exp`、`contact_forces`、`stand_still_without_cmd`、`gravity_aligned_when_stopping`、`joint_power_l2`、`action_smoothness_l2` 等。
+- **`exts/ext_template/ext_template/tasks/locomotion/velocity/mdp/rewards.py`** 
+ Kuavo / 双足相关自定义项，例如：`feet_air_time_clip`、`feet_slide`、`track_lin_vel_xy_yaw_frame_exp`、`track_ang_vel_z_world_exp`、`contact_forces`、`stand_still_without_cmd`、`gravity_aligned_when_stopping`、`joint_power_l2`、`action_smoothness_l2` 等。
 
 ### 奖励「用哪些项、权重与参数」——最常改的配置
 
@@ -68,8 +68,8 @@
 `exts/ext_template/ext_template/tasks/locomotion/velocity/mdp/__init__.py` 中：
 
 ```python
-from omni.isaac.lab.envs.mdp import *  # 通用 MDP 项（含大量 reward）
-from .rewards import *                   # 本仓库 rewards.py
+from omni.isaac.lab.envs.mdp import * # 通用 MDP 项（含大量 reward）
+from .rewards import * # 本仓库 rewards.py
 ```
 
 因此许多惩罚项若未在本地 **`rewards.py`** 重写，其实现在 **`omni.isaac.lab.envs.mdp`**（随 Isaac Lab 安装），仅通过在 **`RewardsCfg`** 里配置 **`RewTerm`** 引用。
@@ -84,14 +84,14 @@ from .rewards import *                   # 本仓库 rewards.py
 
 ### 阶段 0 —— import 时（尚未创建环境）
 
-**文件：** `scripts/rsl_rl/train.py`  
+**文件：** `scripts/rsl_rl/train.py` 
 执行 **`import ext_template.tasks`** 后：
 
 1. **`ext_template/ext_template/__init__.py`** → **`from .tasks import *`**
 2. **`ext_template/tasks/__init__.py`** → **`omni.isaac.lab_tasks.utils.import_packages`** 递归导入子包。
 3. 执行到 **`tasks/locomotion/velocity/config/s42/__init__.py`** 时，多次调用 **`gym.register(...)`**：
-   - **`entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv"`**
-   - **`kwargs`**：`env_cfg_entry_point`、`rsl_rl_cfg_entry_point`
+ - **`entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv"`**
+ - **`kwargs`**：`env_cfg_entry_point`、`rsl_rl_cfg_entry_point`
 
 至此仅为 Gymnasium **注册**，未实例化环境。
 
@@ -124,7 +124,7 @@ Isaac Lab 内部会根据 **`EnvCfg`** 构建场景与各 **Manager**（Observat
 env = RslRlVecEnvWrapper(env)
 ```
 
-**类：** **`omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper`**（Isaac Lab）。  
+**类：** **`omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper`**（Isaac Lab）。 
 将 Gymnasium 环境适配为 **`rsl_rl.env.VecEnv`** 接口。
 
 ### 阶段 4 —— `OnPolicyRunner` 构造

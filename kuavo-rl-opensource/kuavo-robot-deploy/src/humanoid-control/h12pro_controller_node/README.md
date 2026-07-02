@@ -9,8 +9,8 @@
 - H12Pro 控制器的控制器节点，用于接收 H12Pro 的 ROS 话题的数据，解析通道数据到指定按键组合，触发对应的按键事件，调用 Kuavo 中的 ROS 服务，实现对 Kuavo 的控制。
 - RobotState 模块， 用于定义维护机器人的状态， 定义状态切换的规则， 以及状态切换时的回调函数。
 - 配置文件:
-  - `robot_state.json` 用于定义机器人的状态, 状态切换的规则, 以及状态切换时的回调函数名称。
-  - `h12pro_remote_controller.json` 用于定义 H12Pro 各通道对应的按键名称， 以及不同状态下按键组合对应的事件名称等。
+ - `robot_state.json` 用于定义机器人的状态, 状态切换的规则, 以及状态切换时的回调函数名称。
+ - `h12pro_remote_controller.json` 用于定义 H12Pro 各通道对应的按键名称， 以及不同状态下按键组合对应的事件名称等。
 
 ## 使用方法
 
@@ -24,7 +24,7 @@ git clone https://www.lejuhub.com/highlydynamic/kuavo_ros1_workspace.git
 ```
 
 * 获取 Kuavo 代码（如果没有）
-  
+ 
 ```bash
 cd ~/kuavo_ros1_workspace/src
 git clone https://www.lejuhub.com/highlydynamic/kuavo_opensource.git
@@ -176,29 +176,29 @@ sudo journalctl -u h12pro_node.service -f
 
 ```json
 {
-  "joystick_to_corresponding_axis": {
-    "left_joystick_vertical": {
-      "axis":"x",
-      "range":{
-        "min":-0.6,
-        "max":0.6
-      }
-    },
-    "left_joystick_horizontal": {
-      "axis":"y",
-      "range":{
-        "min":-0.2,
-        "max":0.2
-      }
-    },
-    "right_joystick_vertical": {
-      "axis":"w",
-      "range":{
-        "min":-0.8,
-        "max":0.8
-      }
-    }
-  }
+ "joystick_to_corresponding_axis": {
+ "left_joystick_vertical": {
+ "axis":"x",
+ "range":{
+ "min":-0.6,
+ "max":0.6
+ }
+ },
+ "left_joystick_horizontal": {
+ "axis":"y",
+ "range":{
+ "min":-0.2,
+ "max":0.2
+ }
+ },
+ "right_joystick_vertical": {
+ "axis":"w",
+ "range":{
+ "min":-0.8,
+ "max":0.8
+ }
+ }
+ }
 }
 ```
 
@@ -220,28 +220,28 @@ sudo journalctl -u h12pro_node.service -f
 
 * 在 `states` 字段中定义机器人的状态。
 * 在 `transitions` 字段中定义状态切换的规则，包括触发条件，源状态，目标状态，以及状态切换时的回调函数名称（回调函数的实现在 `robot_state/before_callback.py` 中)。
-* 更多配置项请查看 `robot_state.json` 文件。  
+* 更多配置项请查看 `robot_state.json` 文件。 
 
 示例：
 ```json
 {
-  "states":[
-      "initial",
-      "calibrate",
-      "squat",
-      "stand",
-      "jump",
-      "walk"
-  ],
-  "transitions": [
-    {
-      "trigger": "calibrate",
-      "source": "initial",
-      "dest": "calibrate",
-      "before": "calibrate_callback"
-    },
-    ...
-  ]
+ "states":[
+ "initial",
+ "calibrate",
+ "squat",
+ "stand",
+ "jump",
+ "walk"
+ ],
+ "transitions": [
+ {
+ "trigger": "calibrate",
+ "source": "initial",
+ "dest": "calibrate",
+ "before": "calibrate_callback"
+ },
+ ...
+ ]
 }
 ```
 
@@ -256,38 +256,38 @@ sudo journalctl -u h12pro_node.service -f
 示例：
 ```json
 {
-  "channel_to_key_name": {
-    "1": {
-      "name": "right_joystick_horizontal",
-      "type": "joystick"
-    },
-    ...
-  },
-  "channel_to_key_state": {
-    "E": {
-      "282": "E_LEFT",
-      "1002": "E_MIDDLE",
-      "1722": "E_RIGHT"
-    },
-    ...
-  },
-  "robot_state_transition_keycombination": {
-    "initial":{
-      "start":["E_LEFT","F_RIGHT","A_PRESS"],
-      "calibrate":["E_LEFT","F_MIDDLE","C_PRESS"]
-    },
-    ...
-  },
-  "joystick_to_corresponding_axis": {
-    "left_joystick_vertical": {
-      "axis":"x",
-      "range":{
-        "min":-0.6,
-        "max":0.6
-      }
-    },
-    ...
-  }
+ "channel_to_key_name": {
+ "1": {
+ "name": "right_joystick_horizontal",
+ "type": "joystick"
+ },
+ ...
+ },
+ "channel_to_key_state": {
+ "E": {
+ "282": "E_LEFT",
+ "1002": "E_MIDDLE",
+ "1722": "E_RIGHT"
+ },
+ ...
+ },
+ "robot_state_transition_keycombination": {
+ "initial":{
+ "start":["E_LEFT","F_RIGHT","A_PRESS"],
+ "calibrate":["E_LEFT","F_MIDDLE","C_PRESS"]
+ },
+ ...
+ },
+ "joystick_to_corresponding_axis": {
+ "left_joystick_vertical": {
+ "axis":"x",
+ "range":{
+ "min":-0.6,
+ "max":0.6
+ }
+ },
+ ...
+ }
 }
 ```
 

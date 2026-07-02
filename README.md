@@ -14,8 +14,8 @@
 
 ## 🔗 工作空间软链接与迁移（作者本机专用，克隆者可跳过）
 
-> **给 GitHub 访客：** 下面两个文件是作者在自己电脑上的**目录整理脚本与说明**（`~/kuavo_all`、`~/Notes` 路径、`logs` 归档等）。  
-> **你 clone 本仓库阅读笔记/代码时，通常不需要运行它们**；只有当你要复刻作者同一套「本仓库 + 终端入口 + 训练产物外置」目录布局时再看。
+> **给 GitHub 访客：** 下面两个文件是作者在自己电脑上的**目录整理脚本与说明**（`~/kuavo_all`、`~/Notes` 路径、`logs` 归档等）。 
+> **clone 本仓库阅读笔记/代码时，通常无需运行**；只有当要复刻作者同一套「本仓库 + 终端入口 + 训练产物外置」目录布局时再看。
 
 - **拓扑说明：** [`SYMLINK_LAYOUT.md`](./SYMLINK_LAYOUT.md) — 软链接三层结构、铁律与排障
 - **维护脚本：** [`automove_and_link.sh`](./automove_and_link.sh) — 迁移/归档/验链（`./automove_and_link.sh help`）
@@ -28,10 +28,10 @@
 本仓库大量内容基于乐聚官方开源生态，请务必阅读以下条款：
 
 * **版权与知识产权：** 乐聚 Kuavo 机器人相关的底层 C++ 控制框架、OCS2/WBC 架构、官方 URDF/USD 模型、ROS 功能包及原始算法逻辑的知识产权均归 **[乐聚机器人 (Leju Robot)](https://gitee.com/leju-robot)** 及其官方开源仓库所有。包括但不限于：
-  * [`kuavo-ros-opensource`](https://github.com/LejuRobotics/kuavo-ros-opensource)（下位机）
-  * [`kuavo_ros_application`](https://github.com/LejuRobotics/kuavo_ros_application)（上位机）
-  * [`leju_robot_rl`](https://gitee.com/leju-robot/leju_robot_rl)（Isaac Lab 训练）
-  * [`kuavo-rl-opensource`](https://gitee.com/leju-robot/kuavo-rl-opensource)（RL 部署）
+ * [`kuavo-ros-opensource`](https://github.com/LejuRobotics/kuavo-ros-opensource)（下位机）
+ * [`kuavo_ros_application`](https://github.com/LejuRobotics/kuavo_ros_application)（上位机）
+ * [`leju_robot_rl`](https://gitee.com/leju-robot/leju_robot_rl)（Isaac Lab 训练）
+ * [`kuavo-rl-opensource`](https://gitee.com/leju-robot/kuavo-rl-opensource)（RL 部署）
 * **本仓库定位：** 仅为作者个人学习、调试与复盘所整理的**笔记、配置片段与自建 Demo 代码**，**不构成**乐聚官方文档的替代，**不代表**乐聚官方立场，**不保证**与最新官方版本兼容。请始终配合官方仓库与最新发行版结合使用。
 * **代码边界：** 本仓库中的 `kuavo-ros-opensource/`、`kuavo_ros_application/` 等为**魔改影子目录**（非完整官方包）；`leju_robot_rl/`、`kuavo-rl-opensource/` 等含官方 fork 与作者改动并存。子目录内 ocs2、docker 等附带的 README 为上游原文。
 * **禁止误用：** 未经乐聚官方授权，请勿将本仓库内容用于商业交付、OEM 贴牌或任何暗示「官方认证」的用途。

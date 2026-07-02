@@ -1,6 +1,6 @@
 # kuavo_notes — 实战文档索引
 
-Kuavo 4 Pro 二次开发的**过程记录**：环境部署、实机踩坑、终端命令、完整源码归档。  
+Kuavo 4 Pro 二次开发的**过程记录**：环境部署、实机踩坑、终端命令、完整源码归档。 
 与 [`../kuavo-ros-opensource`](../kuavo-ros-opensource/)、[`../kuavo_ros_application`](../kuavo_ros_application/) 中的魔改代码配套阅读。
 
 **标记：** 🟢 无需真机 · 🟡 需真机（单机侧）· 🔴 需真机（双机/全身/部署）。与 [`../README.md`](../README.md)「硬件与阅读门槛」一致。

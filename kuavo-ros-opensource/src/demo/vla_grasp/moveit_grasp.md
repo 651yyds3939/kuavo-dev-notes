@@ -1,7 +1,7 @@
 # Kuavo 双臂 MoveIt 抓取 — 终端发车手册
 
-> **操作习惯**：在**上位机**（`leju_kuavo@192.168.26.12`）统一开终端；下位机节点通过 `ssh lab@192.168.26.1` 远程拉起。  
-> **曲肘时机**：只有**终端 8** 抓取脚本启动后才开始曲肘和抓取，前面全是铺垫。  
+> **操作习惯**：在**上位机**（`leju_kuavo@192.168.26.12`）统一开终端；下位机节点通过 `ssh lab@192.168.26.1` 远程拉起。 
+> **曲肘时机**：只有**终端 8** 抓取脚本启动后才开始曲肘和抓取，前面全是铺垫。 
 > **完整踩坑记录**（含上位机改相机、提示词、每轮 TCP 标定）：[`question.md`](question.md)（**强烈建议通读**）。
 
 发车前 `Ctrl+C` 关掉所有旧窗口，严格按 **终端 1 → 8** 顺序执行。
@@ -98,7 +98,7 @@ python3 src/demo/vla_grasp/moveit_auto_grasp.py
 roslaunch kuavo_arm_moveit_config move_group_octomap.launch
 
 # 终端 5 启动后验收（任意终端）：
-rostopic hz /camera/depth/color/points   # 须 ~15–22 Hz
+rostopic hz /camera/depth/color/points # 须 ~15–22 Hz
 
 # 终端 8 改为：
 python3 src/demo/vla_grasp/moveit_octomap_grasp.py
@@ -130,7 +130,7 @@ IK                   /compute_ik     同左（抬升 IK 失败→18/14/10cm 递�
 | 收手 | **不用** 点云；`execute_vla_style_return()` |
 | 异常 | `_safe_return_both_arms()` 才调 OMPL |
 
-日志若结尾为 `肩膀外摆避障` → 经典版，**全程无点云**。  
+日志若结尾为 `肩膀外摆避障` → 经典版，**全程无点云**。 
 日志若有 `阶段B` / `OctoMap外移` → 点云版收手。
 
 ---
@@ -181,7 +181,7 @@ source devel/setup.bash
 python3 src/demo/vla_grasp/kuavo_state_publisher.py
 ```
 
-**现象**：`👁️ Kuavo 全身 28 轴状态引渡神经元激活`。  
+**现象**：`👁️ Kuavo 全身 28 轴状态引渡神经元激活`。 
 **漏开后果**：MoveIt / 抓取无 `/joint_states`，**必开**。
 
 ---
@@ -205,7 +205,7 @@ roslaunch kuavo_arm_moveit_config move_group.launch
 roslaunch kuavo_arm_moveit_config move_group_octomap.launch
 ```
 
-→ 配对终端 8：`moveit_octomap_grasp.py`  
+→ 配对终端 8：`moveit_octomap_grasp.py` 
 **勿**与 `move_group.launch` 同时运行。
 
 **就绪标志**：`You can start planning now!`
@@ -226,7 +226,7 @@ python3 src/demo/vla_grasp/look_down.py
 ## 终端 5：深度相机（上位机）
 
 ```bash
-ssh leju_kuavo@192.168.26.12   # 若已在上位机桌面可省略
+ssh leju_kuavo@192.168.26.12 # 若已在上位机桌面可省略
 cd ~/kuavo_ros_application
 source devel/setup.bash
 roslaunch dynamic_biped load_robot_head.launch
@@ -239,14 +239,14 @@ roslaunch dynamic_biped load_robot_head.launch
 ```bash
 rostopic hz /camera/depth/image_raw
 rostopic hz /camera/depth/color/points
-rostopic info /camera/depth/color/points   # publisher: vla_depth_to_pointcloud
+rostopic info /camera/depth/color/points # publisher: vla_depth_to_pointcloud
 ```
 
 `/vla/yolo_target` 有数据 **≠** 有点云。
 
 ### 相机卡死
 
-**现象**：`Received signal: 11`、`process has died exit code 11`、全部话题 `no new messages`。  
+**现象**：`Received signal: 11`、`process has died exit code 11`、全部话题 `no new messages`。 
 **处理**：`Ctrl+C` 重启终端 5；经典版比 OctoMap 版更省相机负载。详见 [`question.md` §6](question.md)。
 
 ---
@@ -259,7 +259,7 @@ source devel/setup.bash
 python3 src/ros_vision/detection_industrial_yolo/yolo_box_object_detection/scripts/yolo_box_segment_ros_TF2.py
 ```
 
-**现象**：`🎯 绝对坐标 (抗晃动): X=..., Y=...`  
+**现象**：`🎯 绝对坐标 (抗晃动): X=..., Y=...` 
 **发布**：`/vla/yolo_target`
 
 ---
@@ -352,7 +352,7 @@ OctoMap 配置：`src/kuavo_arm_moveit_config/config/sensors_3d_octomap.yaml`
 | 无 `/joint_states` | 开终端 2 |
 | IK 不可用 | 开终端 3，等 `You can start planning now!` |
 | `compute_ik` WARN 后仍成功 | 正常；优先 `/compute_ik` |
-| 记得有点云收手但没有 | 你跑的是经典版；换 OctoMap 终端 3+8 |
+| 记得有点云收手但没有 | 误跑经典版；换 OctoMap 终端 3+8 |
 | 相机 SIGSEGV | 重启终端 5 |
 | 胳膊不动 | 勿开 `kuavo_moveit_bridge.py` |
 | URDF collision WARN | 启动一次，可忽略 |
@@ -380,8 +380,8 @@ OctoMap 配置：`src/kuavo_arm_moveit_config/config/sensors_3d_octomap.yaml`
 
 ### 问题
 
-- `/camera/depth/color/points` 在 `rostopic list` 里存在，但 `hz` 为 `no new messages`  
-- 第一版开 `enable_point_cloud` + relay 后点云可用，但跑 1～2 轮抓取相机 **SIGSEGV 卡死**  
+- `/camera/depth/color/points` 在 `rostopic list` 里存在，但 `hz` 为 `no new messages` 
+- 第一版开 `enable_point_cloud` + relay 后点云可用，但跑 1～2 轮抓取相机 **SIGSEGV 卡死** 
 
 ### 最终稳定方案（`orbbec_sensor_robot_enable.launch`）
 
@@ -397,10 +397,10 @@ OctoMap 配置：`src/kuavo_arm_moveit_config/config/sensors_3d_octomap.yaml`
 
 ### 发给上位机 Cursor 的任务摘要
 
-1. 沿 launch 链查 `enable_point_cloud` 默认值  
-2. 让 `/camera/depth/color/points` 有 ≥15Hz 数据  
-3. 对齐下位机 `sensors_3d_octomap.yaml`  
-4. **不要改**下位机仓库与 YOLO  
+1. 沿 launch 链查 `enable_point_cloud` 默认值 
+2. 让 `/camera/depth/color/points` 有 ≥15Hz 数据 
+3. 对齐下位机 `sensors_3d_octomap.yaml` 
+4. **不要改**下位机仓库与 YOLO 
 
 提示词全文：[`question.md` 附录 C / §13.3](question.md)
 
@@ -434,8 +434,8 @@ OctoMap 配置：`src/kuavo_arm_moveit_config/config/sensors_3d_octomap.yaml`
 
 ## 文档维护说明
 
-- **`moveit_grasp.md`（本文件）**：终端命令、双模式发车、快速复制、当前参数  
-- **`question.md`**：全对话时间线、每一个踩坑、上位机改动、提示词、版本演进、40 条速查表  
+- **`moveit_grasp.md`（本文件）**：终端命令、双模式发车、快速复制、当前参数 
+- **`question.md`**：全对话时间线、每一个踩坑、上位机改动、提示词、版本演进、40 条速查表 
 
 若代码再次迭代，请**同时更新**两文件。
 

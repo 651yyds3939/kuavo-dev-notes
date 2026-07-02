@@ -21,9 +21,9 @@
 ## 配置参数
 
 ```python
-TAG_ID = config.pick.tag_id                                    # 目标 AprilTag ID
-HEAD_SEARCH_YAWS = [85°, 0°, -85°]                            # 头部搜索偏航角
-HEAD_SEARCH_PITCHES = [-10°, 0°, 10°]                         # 头部搜索俯仰角
+TAG_ID = config.pick.tag_id # 目标 AprilTag ID
+HEAD_SEARCH_YAWS = [85°, 0°, -85°] # 头部搜索偏航角
+HEAD_SEARCH_PITCHES = [-10°, 0°, 10°] # 头部搜索俯仰角
 ```
 
 ## 启动说明

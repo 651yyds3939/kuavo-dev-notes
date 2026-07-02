@@ -10,7 +10,7 @@
 
 **尚未完成：** 世界模型在舞蹈（`tdmpc2_dance`）与行走（`tdmpc2_velocity`）任务上的**长期稳定性与策略质量仍未达预期**，超参与奖励仍在试验阶段；**暂不以真机部署为目标**，以仿真研究为主。
 
-**你可以在此基础上：**
+**可在此基础上：**
 
 - 改 `exts/.../world_model_core/` 与任务配置中的奖励、规划 horizon、batch 等
 - 参照 31.1 调整 CSV / 参考动作与 `scripts/tdmpc2/train.py` 参数
@@ -47,7 +47,7 @@ pip install -e exts/ext_template
 ```bash
 cd leju_robot_wm
 # 训练 / play 命令见 kuavo_notes/31.1.world_model.md
-python3 scripts/tdmpc2/play.py  # 示例入口，参数见文档
+python3 scripts/tdmpc2/play.py # 示例入口，参数见文档
 ```
 
 日志：`logs/tdmpc2/Kuavo/...`
