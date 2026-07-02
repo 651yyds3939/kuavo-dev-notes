@@ -1,6 +1,6 @@
 # kuavo-robot-deploy — RL 部署工作空间
 
-> **本目录说明**：本目录为 [`kuavo-dev-notes`](../../../../README.md) / [`kuavo-rl-opensource`](../../readme.md) 下的部署仓。S49 舞蹈见 [`kuavo_notes/23.*`](../../../../kuavo_notes/23.5.RL_dance_deploy_hybrid.md)。Docker 内路径常为 `/root/kuavo_ws`。
+> **本目录说明**：本目录为 [`kuavo-dev-notes`](../../README.md) / [`kuavo-rl-opensource`](../readme.md) 下的部署仓。S49 舞蹈见 [`kuavo_notes/23.*`](../../kuavo_notes/23.5.RL_dance_deploy_hybrid.md)。Docker 内路径常为 `/root/kuavo_ws`。
 
 ---
 

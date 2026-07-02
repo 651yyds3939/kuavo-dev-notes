@@ -1,4 +1,4 @@
-> 世界模型仓内副本。TD-MPC2 见 [`kuavo_notes/31.1`](../../../../../../../../kuavo_notes/31.1.world_model.md)。下列 S49 舞蹈流程与 `leju_robot_rl` 同目录 README 一致，供 WM 实验参考。
+> 世界模型仓内副本。TD-MPC2 见 [`kuavo_notes/31.1`](../../../../../../../../../kuavo_notes/31.1.world_model.md)。下列 S49 舞蹈流程与 `leju_robot_rl` 同目录 README 一致，供 WM 实验参考。
 
 # S49 四代机全身舞 — 训练 / 导出 / 部署
 

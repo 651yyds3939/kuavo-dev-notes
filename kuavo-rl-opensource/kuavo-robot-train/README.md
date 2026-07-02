@@ -1,6 +1,6 @@
 # kuavo-robot-train — Gym 版训练（可选）
 
-> 本仓库子目录；主部署请用 [`kuavo-robot-deploy`](../kuavo-robot-deploy/readme.md)。Lab 训练见 [`leju_robot_rl`](../../../leju_robot_rl/README.md)。
+> 本仓库子目录；主部署请用 [`kuavo-robot-deploy`](../kuavo-robot-deploy/readme.md)。Lab 训练见 [`leju_robot_rl`](../../leju_robot_rl/README.md)。
 
 ---
 
