@@ -33,8 +33,8 @@ from omni.isaac.lab.terrains import TerrainImporterCfg
 from ext_template.terrains import ROUGH_TERRAINS_CFG
 from ext_template.assets.kuavo import Kuavos49_CFG
 
-# LAFAN1 G1 舞蹈 → Kuavo S49（adapt_lafan1_g1_to_kuavo.py --profile kuavo_dance）
-DANCE_CSV = "kuavo_action_LAFAN1_g1_dance1_DANCE_RAD.csv"
+# v5: LAFAN1 大步腿 + S54 原生 Kuavo 手臂（merge_lafan1_legs_s54_arms.py）
+DANCE_CSV = "kuavo_action_HYBRID_LAFAN1LEGS_S54ARMS_RAD.csv"
 
 # RL 仅控制 26 关节（与 S46 USD / 部署 policy / CSV 顺序一致）
 KUAVO_RL_JOINT_NAMES = [
@@ -189,13 +189,14 @@ class RewardsCfg:
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.2)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.08)
+    # v5: 舞蹈迈步会带动 base XY 速度，过重惩罚会把策略压成原地小碎步
     base_lin_vel_xy_stationary = RewTerm(
         func=local_rewards.base_lin_vel_xy_l2_stationary,
-        weight=-1.3,
+        weight=-0.25,
     )
     base_ang_vel_yaw_stationary = RewTerm(
         func=local_rewards.base_ang_vel_yaw_l2_stationary,
-        weight=-0.3,
+        weight=-0.08,
     )
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
     dof_power_l2 = RewTerm(func=mdp.joint_power_l2, weight=-2.0e-5)
@@ -210,8 +211,8 @@ class RewardsCfg:
         weight=-1.0e-5,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["leg_[l,r]6_joint"])},
     )
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.001)
-    action_smoothness_l2 = RewTerm(func=mdp.action_smoothness_l2, weight=-0.002)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.0002)
+    action_smoothness_l2 = RewTerm(func=mdp.action_smoothness_l2, weight=-0.0005)
 
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
@@ -245,20 +246,20 @@ class RewardsCfg:
         weight=-0.04,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["leg_[l,r][1,2]_joint"])},
     )
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-12.0)
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-6.0)
     base_height = RewTerm(
         func=local_rewards.base_height_l2,
-        weight=-8.0,
+        weight=-4.0,
         params={"target_height": 0.87},
     )
     penalty_root_squat = RewTerm(
         func=local_rewards.penalty_root_height_below,
-        weight=-15.0,
-        params={"min_height": 0.72},
+        weight=-8.0,
+        params={"min_height": 0.70},
     )
     penalty_foot_pitch = RewTerm(
         func=local_rewards.penalty_foot_pitch_deviation,
-        weight=-3.0,
+        weight=-2.0,
         params={"csv_path": DANCE_CSV},
     )
     contact_force = RewTerm(
@@ -274,31 +275,30 @@ class RewardsCfg:
     stand_still_without_cmd = RewTerm(func=mdp.stand_still_without_cmd, weight=0.0, params={"command_name": "base_velocity"})
     gravity_aligned_when_stopping = RewTerm(func=mdp.gravity_aligned_when_stopping, weight=0.0, params={"command_name": "base_velocity"})
 
+    # v5: 手臂无 standing gate（大摆臂时躯干会倾）；腿保留轻度 gate 防跪
     track_punch_arms = RewTerm(
-        func=local_rewards.track_punch_arms_trajectory_upright_exp,
-        weight=16.0,
+        func=local_rewards.track_punch_arms_trajectory_exp,
+        weight=22.0,
         params={
-            "std": 0.30,
+            "std": 0.24,
             "csv_path": DANCE_CSV,
-            "min_upright": 0.85,
-            "min_height": 0.70,
-            "target_height": 0.87,
         },
     )
     track_punch_legs = RewTerm(
         func=local_rewards.track_punch_legs_trajectory_upright_exp,
-        weight=11.0,
+        weight=14.0,
         params={
-            "std": 0.32,
+            "std": 0.26,
             "csv_path": DANCE_CSV,
-            "min_upright": 0.85,
-            "min_height": 0.70,
+            "min_upright": 0.82,
+            "min_height": 0.68,
             "target_height": 0.87,
         },
     )
+    # 相对 default=0 惩罚手臂，与 CSV 模仿冲突 → 关闭
     arm_roll_penalty = RewTerm(
         func=local_rewards.penalty_arm_roll_limit,
-        weight=-0.5,
+        weight=0.0,
     )
 
 
