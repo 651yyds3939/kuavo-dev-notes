@@ -9,10 +9,12 @@ def add_tdmpc2_args(parser: argparse.ArgumentParser):
 	arg_group.add_argument("--run_name", type=str, default=None)
 	arg_group.add_argument("--max_iterations", type=int, default=None)
 	arg_group.add_argument("--seed_steps", type=int, default=None)
+	arg_group.add_argument("--seed_iterations", type=int, default=None)
+	arg_group.add_argument("--updates_per_iter", type=int, default=None, help="Gradient steps per iter (0=auto).")
 	arg_group.add_argument("--resume", action="store_true", default=False)
 	arg_group.add_argument("--load_run", type=str, default=None)
 	arg_group.add_argument("--checkpoint", type=str, default=None)
-	arg_group.add_argument("--mpc", action="store_true", default=False, help="Use MPPI during collection (slow).")
+	arg_group.add_argument("--mpc", action="store_true", default=False, help="Enable MPPI planning (train/play).")
 	arg_group.add_argument("--wm_num_envs", type=int, default=None, help="Override num_envs for WM training (VRAM).")
 
 
@@ -27,6 +29,10 @@ def update_tdmpc2_cfg(agent_cfg, args_cli: argparse.Namespace):
 		agent_cfg.max_iterations = args_cli.max_iterations
 	if args_cli.seed_steps is not None:
 		agent_cfg.seed_steps = args_cli.seed_steps
+	if args_cli.seed_iterations is not None:
+		agent_cfg.seed_iterations = args_cli.seed_iterations
+	if args_cli.updates_per_iter is not None:
+		agent_cfg.updates_per_iter = args_cli.updates_per_iter
 	if args_cli.resume:
 		agent_cfg.resume = True
 	if args_cli.load_run is not None:

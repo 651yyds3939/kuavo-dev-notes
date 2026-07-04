@@ -267,6 +267,36 @@ def base_lin_vel_xy_l2_stationary(
     return torch.sum(torch.square(vel_b[:, :2]), dim=1)
 
 
+def penalty_root_xy_displacement(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Penalty for drifting away from episode spawn in XY (in-place dance anchor)."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    pos_local = asset.data.root_link_pos_w[:, :2] - env.scene.env_origins[:, :2]
+    return torch.sum(torch.square(pos_local), dim=1)
+
+
+def penalty_leg_joint_vel_l2(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Penalize rapid leg joint oscillation (high-frequency jitter while tracking CSV)."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    joint_ids = _resolve_named_joint_ids(asset, LEG_GYM_JOINT_NAMES)
+    return torch.sum(torch.square(asset.data.joint_vel[:, joint_ids]), dim=1)
+
+
+def penalty_leg_joint_acc_l2(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Penalize leg joint acceleration spikes (smooth out trembling)."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    joint_ids = _resolve_named_joint_ids(asset, LEG_GYM_JOINT_NAMES)
+    return torch.sum(torch.square(asset.data.joint_acc[:, joint_ids]), dim=1)
+
+
 def base_ang_vel_yaw_l2_stationary(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),

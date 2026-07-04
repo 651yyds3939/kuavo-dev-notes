@@ -110,8 +110,30 @@ gym.register(
 )
 
 # ---------------------------------------------------------------------------
-# TD-MPC2 world-model training tasks (S42/S46 stable asset)
+# TD-MPC2 world-model curriculum (S42): stand → walk → arms dance → full dance
 # ---------------------------------------------------------------------------
+gym.register(
+    id="Legged-Isaac-Velocity-Flat-Kuavo-S42-Stand-TDMPC2-v0",
+    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.tdmpc2_stand_env_cfg:KuavoS42StandTDMPC2EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:KuavoS42FlatPPORunnerCfg",
+        "tdmpc2_cfg_entry_point": f"{agents.__name__}.tdmpc2_cfg:KuavoS42StandTDMPC2RunnerCfg",
+    },
+)
+
+gym.register(
+    id="Legged-Isaac-Velocity-Flat-Kuavo-S42-Stand-TDMPC2-Play-v0",
+    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.tdmpc2_stand_env_cfg:KuavoS42StandTDMPC2EnvCfg_PLAY",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:KuavoS42FlatPPORunnerCfg",
+        "tdmpc2_cfg_entry_point": f"{agents.__name__}.tdmpc2_cfg:KuavoS42StandTDMPC2PlayRunnerCfg",
+    },
+)
+
 gym.register(
     id="Legged-Isaac-Velocity-Flat-Kuavo-S42-Punch-ArmsOnly-TDMPC2-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",

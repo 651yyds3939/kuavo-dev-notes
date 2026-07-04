@@ -16,7 +16,6 @@ parser.add_argument("--task", type=str, required=True, help="TDMPC2-Play gym tas
 parser.add_argument("--num_envs", type=int, default=None)
 parser.add_argument("--eval_steps", type=int, default=1000)
 parser.add_argument("--no_mpc", action="store_true", help="Use policy prior only (no MPPI).")
-parser.add_argument("--mpc", action="store_true", help="Enable MPPI planning (overrides cfg default).")
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--video", action="store_true", default=False, help="Record video (headless-friendly).")
 parser.add_argument("--video_length", type=int, default=200, help="Recorded video length in env steps.")

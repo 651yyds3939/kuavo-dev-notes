@@ -34,8 +34,7 @@ def resolve_s49_urdf_path() -> str:
 
 Kuavos46_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        # 修改 kuavo.py 第 12 行
-        usd_path="/home/lwy/leju_robot_rl/exts/ext_template/ext_template/assets/Robots/Kuavo/biped_s46.usd",
+        usd_path=os.path.join(ISAAC_ASSET_DIR, "Robots/Kuavo/biped_s46.usd"),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

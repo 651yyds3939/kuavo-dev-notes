@@ -33,8 +33,8 @@ from omni.isaac.lab.terrains import TerrainImporterCfg
 from ext_template.terrains import ROUGH_TERRAINS_CFG
 from ext_template.assets.kuavo import Kuavos49_CFG
 
-# v5: LAFAN1 大步腿 + S54 原生 Kuavo 手臂（merge_lafan1_legs_s54_arms.py）
-DANCE_CSV = "kuavo_action_HYBRID_LAFAN1LEGS_S54ARMS_RAD.csv"
+# v8: v7 防漂移保留 + 加强丝滑（修双腿高频颤抖）
+DANCE_CSV = "kuavo_action_S49_FROM_S54_INPLACE_RAD.csv"
 
 # RL 仅控制 26 关节（与 S46 USD / 部署 policy / CSV 顺序一致）
 KUAVO_RL_JOINT_NAMES = [
@@ -189,16 +189,28 @@ class RewardsCfg:
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.2)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.08)
-    # v5: 舞蹈迈步会带动 base XY 速度，过重惩罚会把策略压成原地小碎步
+    # v7: v6 防漂移过弱（-0.05）导致 mimic 起来后一直后退；恢复速度惩罚 + 新增位置锚定
     base_lin_vel_xy_stationary = RewTerm(
         func=local_rewards.base_lin_vel_xy_l2_stationary,
-        weight=-0.25,
+        weight=-1.0,
     )
     base_ang_vel_yaw_stationary = RewTerm(
         func=local_rewards.base_ang_vel_yaw_l2_stationary,
-        weight=-0.08,
+        weight=-0.6,
+    )
+    penalty_root_xy_displacement = RewTerm(
+        func=local_rewards.penalty_root_xy_displacement,
+        weight=-3.0,
     )
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
+    penalty_leg_joint_vel_l2 = RewTerm(
+        func=local_rewards.penalty_leg_joint_vel_l2,
+        weight=-4.0e-4,
+    )
+    penalty_leg_joint_acc_l2 = RewTerm(
+        func=local_rewards.penalty_leg_joint_acc_l2,
+        weight=-2.0e-6,
+    )
     dof_power_l2 = RewTerm(func=mdp.joint_power_l2, weight=-2.0e-5)
 
     dof_torques_l2 = RewTerm(
@@ -211,8 +223,9 @@ class RewardsCfg:
         weight=-1.0e-5,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["leg_[l,r]6_joint"])},
     )
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.0002)
-    action_smoothness_l2 = RewTerm(func=mdp.action_smoothness_l2, weight=-0.0005)
+    # v8: 6k 步后 mimic 压过 smoothness → 腿高频抖；对齐官方 action_rate=-0.1 并加强二阶平滑
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.12)
+    action_smoothness_l2 = RewTerm(func=mdp.action_smoothness_l2, weight=-0.08)
 
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
@@ -235,7 +248,7 @@ class RewardsCfg:
     )
     feet_slide = RewTerm(
         func=mdp.feet_slide,
-        weight=-0.12,
+        weight=-0.5,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names="leg_[l,r]6_link"),
             "asset_cfg": SceneEntityCfg("robot", body_names="leg_[l,r]6_link"),
@@ -246,16 +259,16 @@ class RewardsCfg:
         weight=-0.04,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["leg_[l,r][1,2]_joint"])},
     )
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-6.0)
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.0)
     base_height = RewTerm(
         func=local_rewards.base_height_l2,
-        weight=-4.0,
+        weight=-2.0,
         params={"target_height": 0.87},
     )
     penalty_root_squat = RewTerm(
         func=local_rewards.penalty_root_height_below,
-        weight=-8.0,
-        params={"min_height": 0.70},
+        weight=-5.0,
+        params={"min_height": 0.68},
     )
     penalty_foot_pitch = RewTerm(
         func=local_rewards.penalty_foot_pitch_deviation,
@@ -275,20 +288,19 @@ class RewardsCfg:
     stand_still_without_cmd = RewTerm(func=mdp.stand_still_without_cmd, weight=0.0, params={"command_name": "base_velocity"})
     gravity_aligned_when_stopping = RewTerm(func=mdp.gravity_aligned_when_stopping, weight=0.0, params={"command_name": "base_velocity"})
 
-    # v5: 手臂无 standing gate（大摆臂时躯干会倾）；腿保留轻度 gate 防跪
     track_punch_arms = RewTerm(
         func=local_rewards.track_punch_arms_trajectory_exp,
-        weight=22.0,
+        weight=18.0,
         params={
-            "std": 0.24,
+            "std": 0.32,
             "csv_path": DANCE_CSV,
         },
     )
     track_punch_legs = RewTerm(
         func=local_rewards.track_punch_legs_trajectory_upright_exp,
-        weight=14.0,
+        weight=8.0,
         params={
-            "std": 0.26,
+            "std": 0.38,
             "csv_path": DANCE_CSV,
             "min_upright": 0.82,
             "min_height": 0.68,
