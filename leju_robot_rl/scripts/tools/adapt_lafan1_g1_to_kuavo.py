@@ -344,7 +344,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Adapt LAFAN1 Unitree G1 CSV to Kuavo S49/S46 dance reference.")
     parser.add_argument(
         "--input",
-        default="/home/lwy/kuavo_all/LAFAN1_Retargeting_Dataset/g1/dance1_subject1.csv",
+        default="~/kuavo_all/LAFAN1_Retargeting_Dataset/g1/dance1_subject1.csv",
         help="Source G1 LAFAN1 CSV (36 columns).",
     )
     parser.add_argument(

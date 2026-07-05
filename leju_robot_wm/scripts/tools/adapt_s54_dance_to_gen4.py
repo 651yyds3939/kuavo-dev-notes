@@ -212,7 +212,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Adapt Kuavo S54 dance CSV to Gen-4 (S49/S46).")
     parser.add_argument(
         "--input",
-        default="/home/lwy/kuavo_all/LejuLab-Train/source/leju_robot/leju_robot/assets/motion_data/mimic/csv_data/kuavos54_dance_120fps.csv",
+        default="~/kuavo_all/LejuLab-Train/source/leju_robot/leju_robot/assets/motion_data/mimic/csv_data/kuavos54_dance_120fps.csv",
     )
     parser.add_argument(
         "--output",

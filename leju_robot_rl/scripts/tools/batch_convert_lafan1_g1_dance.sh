@@ -3,7 +3,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-LAFAN1_DIR="${LAFAN1_DIR:-/home/lwy/kuavo_all/LAFAN1_Retargeting_Dataset/g1}"
+LAFAN1_DIR="${LAFAN1_DIR:-~/kuavo_all/LAFAN1_Retargeting_Dataset/g1}"
 OUT_DIR="${REPO_ROOT}/motion_refs/lafan1_g1"
 CLIP_SEC="${CLIP_SEC:-60}"
 SRC_FPS="${SRC_FPS:-30}"

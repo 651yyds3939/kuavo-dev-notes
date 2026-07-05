@@ -1,0 +1,17 @@
+# NUC / 真机推理环境（与 PC 训练共用 conda env 亦可）
+#   conda create -n lerobot python=3.10 -y
+#   conda activate lerobot
+#   pip install -r src/demo/vla_grasp/mcp/lerobot_infer_requirements.txt
+
+lerobot>=0.3.0
+torch
+opencv-python-headless
+safetensors
+numpy
+# NUC 真机推理还需 ROS Python 桥接（conda 3.10 + 系统 ROS Noetic）
+rospkg
+catkin_pkg
+empy
+pyyaml
+defusedxml
+netifaces

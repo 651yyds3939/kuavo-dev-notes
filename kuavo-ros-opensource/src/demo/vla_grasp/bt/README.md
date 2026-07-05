@@ -85,14 +85,14 @@ python3 vla_bt_daemon.py _yolo_collect_timeout:=12.0
 
 ```bash
 rostopic pub /vla/master_command std_msgs/String \
- '{"data": "{\"action\": \"grab\", \"target\": \"可乐\"}"}' -1
+  '{"data": "{\"action\": \"grab\", \"target\": \"可乐\"}"}' -1
 ```
 
 对话（需先起 `tts_server.py`）：
 
 ```bash
 rostopic pub /vla/master_command std_msgs/String \
- '{"data": "{\"action\": \"chat\", \"text\": \"好的，我来帮你拿\"}"}' -1
+  '{"data": "{\"action\": \"chat\", \"text\": \"好的，我来帮你拿\"}"}' -1
 ```
 
 ## 相对上一版的优化点

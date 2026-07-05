@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Local IDE / agent config
+.claude/
+.vscode/settings.local.json
+
+# Build artifacts (should not be committed)
+build/
+devel/
+install/
+*.egg-info/

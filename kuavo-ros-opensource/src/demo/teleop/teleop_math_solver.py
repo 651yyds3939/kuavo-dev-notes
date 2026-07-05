@@ -330,6 +330,6 @@ class KuavoTeleopSolver:
 if __name__ == '__main__':
     try:
         solver = KuavoTeleopSolver()
-        solver.run_pipeline("http://10.121.76.118:8080/video")
+        solver.run_pipeline("http://<phone-ip>:8080/video")
     except rospy.ROSInterruptException:
         pass
