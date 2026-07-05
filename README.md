@@ -25,11 +25,42 @@ git pull
 
 **两库并排维护时**（例如 `~/Notes/kuavo-dev-notes` 与 `~/Notes/robotics-notes`），需分别在两个目录各执行一次 `git pull`。通用机器人知识见 [robotics-notes](https://github.com/651yyds3939/robotics-notes)。
 
-**首次克隆本仓库：**
+**首次克隆本仓库（含 Git LFS 须知）：**
+
+本仓库在 `kuavo-ros-opensource/src/demo/vla_grasp/pretrained_model/` 下含约 **200MB** 的 ACT 预训练模型（`*.safetensors`），通过 **Git LFS** 托管。克隆前请先安装并初始化 LFS，否则只会拉到约 130 字节的指针文件，真机推理会失败。
 
 ```bash
+# 1. 安装 Git LFS（任选其一，一次性）
+conda install -c conda-forge git-lfs
+# sudo apt install git-lfs
+
+git lfs install
+
+# 2. 克隆
 git clone https://github.com/651yyds3939/kuavo-dev-notes.git
 cd kuavo-dev-notes
+```
+
+**已 clone 但未装 LFS？** 进入仓库后补装并拉取大文件：
+
+```bash
+git lfs install
+git lfs pull
+```
+
+**验证模型是否完整：**
+
+```bash
+ls -lh kuavo-ros-opensource/src/demo/vla_grasp/pretrained_model/model.safetensors
+# 正常应约 198M；若仅 ~134 字节，说明仍是 LFS 指针，请执行 git lfs pull
+```
+
+**日常同步：**
+
+```bash
+cd /path/to/kuavo-dev-notes   # 改为本机实际路径
+git pull
+git lfs pull   # 若 pull 后新增了 LFS 大文件，建议执行
 ```
 
 
