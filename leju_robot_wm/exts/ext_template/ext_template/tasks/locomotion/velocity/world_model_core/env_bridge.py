@@ -53,7 +53,7 @@ class EpisodeTracker:
 class TDMPC2VecEnv:
 	"""Thin wrapper around Isaac Lab ManagerBasedRLEnv for TD-MPC2 rollout collection."""
 
-	def __init__(self, env: gym.Env, device: str, action_scale: float = 0.30, obs_key: str = "policy"):
+	def __init__(self, env: gym.Env, device: str, action_scale: float = 1.0, obs_key: str = "policy"):
 		self.env = env
 		self.device = torch.device(device)
 		self.action_scale = action_scale
@@ -100,6 +100,9 @@ class TDMPC2VecEnv:
 
 	def random_action(self) -> torch.Tensor:
 		return torch.empty(self.num_envs, self.action_dim, device=self.device).uniform_(-1, 1)
+
+	def zero_action(self) -> torch.Tensor:
+		return torch.zeros(self.num_envs, self.action_dim, device=self.device)
 
 
 class RolloutCollector:

@@ -36,7 +36,7 @@ class TDMPC2Runner:
 
 		self.tdmpc_cfg = helper.default_cfg(
 			obs_profile=obs_profile,
-			action_scale=getattr(agent_cfg, "action_scale", 0.30),
+			action_scale=getattr(agent_cfg, "action_scale", 1.0),
 			batch_size=getattr(agent_cfg, "batch_size", 256),
 			horizon=getattr(agent_cfg, "horizon", 5),
 			sequence_length=getattr(agent_cfg, "sequence_length", 50),
@@ -47,6 +47,7 @@ class TDMPC2Runner:
 			num_pi_trajs=getattr(agent_cfg, "num_pi_trajs", 12),
 			latent_dim=getattr(agent_cfg, "latent_dim", 512),
 			lr=getattr(agent_cfg, "learning_rate", 3e-4),
+			reward_coef=getattr(agent_cfg, "reward_coef", 0.1),
 		)
 		self.tdmpc_cfg.obs_shape = (env.obs_dim,)
 		self.tdmpc_cfg.action_dim = env.action_dim
@@ -90,6 +91,8 @@ class TDMPC2Runner:
 		min_buffer = getattr(self.agent_cfg, "min_buffer_size", self.tdmpc_cfg.batch_size * 2)
 		log_interval = getattr(self.agent_cfg, "log_interval", 10)
 		save_interval = getattr(self.agent_cfg, "save_interval", 100)
+		eval_interval = getattr(self.agent_cfg, "eval_interval", 0)
+		seed_action_mode = getattr(self.agent_cfg, "seed_action_mode", "random")
 		init_at_random_ep_len = getattr(self.agent_cfg, "init_at_random_ep_len", init_at_random_ep_len)
 
 		transitions_per_iter = steps_per_iter * self.env.num_envs
@@ -107,7 +110,7 @@ class TDMPC2Runner:
 
 		print(f"[TDMPC2] obs_dim={self.env.obs_dim}, action_dim={self.env.action_dim}, profile={self.tdmpc_cfg.obs_profile}")
 		print(
-			f"[TDMPC2] seed_iterations={seed_iterations}, seed_steps={seed_steps}, "
+			f"[TDMPC2] seed_iterations={seed_iterations}, seed_steps={seed_steps}, seed_action={seed_action_mode}, "
 			f"steps_per_iter={steps_per_iter}, updates_per_iter={updates_per_iter}, "
 			f"transitions/iter={transitions_per_iter}, mpc={self.tdmpc_cfg.mpc}"
 		)
@@ -117,13 +120,18 @@ class TDMPC2Runner:
 			use_random = (seed_iterations > 0 and it < seed_iterations) or (
 				seed_steps > 0 and self.global_step < seed_steps
 			)
+			env_dones = 0
 			for _ in range(steps_per_iter):
 				if use_random:
-					actions = self.env.random_action()
+					if seed_action_mode == "zero":
+						actions = self.env.zero_action()
+					else:
+						actions = self.env.random_action()
 				else:
 					actions = self.agent.act_batch(obs, use_mpc=self.tdmpc_cfg.mpc and self.env.num_envs == 1)
 
 				next_obs, rewards, dones, terminated = self.env.step(actions)
+				env_dones += int(dones.sum().item())
 				self.collector.ingest(obs, actions, next_obs, rewards, dones)
 				obs = next_obs
 				self.global_step += self.env.num_envs
@@ -142,6 +150,14 @@ class TDMPC2Runner:
 				self.writer.add_scalar("train/global_steps", self.global_step, it)
 				self.writer.add_scalar("train/updates_per_iter", updates_per_iter, it)
 				self.writer.add_scalar("train/fps", transitions_per_iter / max(time.time() - t0, 1e-6), it)
+				env_term_rate = env_dones / max(transitions_per_iter, 1)
+				self.writer.add_scalar("train/env_termination_rate", env_term_rate, it)
+
+			if eval_interval > 0 and (it + 1) % eval_interval == 0 and self.env.num_envs == 1:
+				metrics = self.evaluate(num_steps=500, use_mpc=self.tdmpc_cfg.mpc)
+				print(f"[TDMPC2] eval iter {it + 1}: {metrics}")
+				for key, val in metrics.items():
+					self.writer.add_scalar(f"eval/{key}", val, it)
 
 			if (it + 1) % save_interval == 0:
 				self.save(os.path.join(self.log_dir, f"model_{it + 1}.pt"))
@@ -149,7 +165,8 @@ class TDMPC2Runner:
 			if (it + 1) % log_interval == 0:
 				msg = (
 					f"[TDMPC2] iter {it + 1}/{num_iterations} | buffer={len(self.buffer)} | "
-					f"steps={self.global_step} | updates={updates_per_iter}"
+					f"steps={self.global_step} | updates={updates_per_iter} | "
+					f"env_term={env_dones / max(transitions_per_iter, 1):.3f}"
 				)
 				if update_info is not None:
 					msg += f" | loss={update_info.get('total_loss', 0):.4f}"

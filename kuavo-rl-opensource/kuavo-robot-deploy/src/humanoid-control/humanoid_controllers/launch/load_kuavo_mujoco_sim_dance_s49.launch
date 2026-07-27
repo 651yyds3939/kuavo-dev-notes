@@ -8,6 +8,10 @@
     <arg name="rl_from_start" default="false"/>
     <arg name="sim_keep_wbc_with_rl" default="true"/>
     <arg name="sim_rl_debug_zero_action" default="false"/>
+    <arg name="sim_rl_debug_hold_seed_action" default="false"/>
+    <arg name="sim_rl_use_wbc_seed" default="true"/>
+    <arg name="sim_rl_seed_blend_sec" default="2.0"/>
+    <arg name="sim_rl_spawn_pitch_rad" default="0.0"/>
     <arg name="sim_wbc_rl_action_blend" default="0.75"/>
     <arg name="sim_wbc_rl_blend_start" default="0.60"/>
     <arg name="sim_wbc_rl_blend_ramp_sec" default="1.5"/>
@@ -21,6 +25,10 @@
         <arg name="rl_from_start" value="$(arg rl_from_start)"/>
         <arg name="sim_keep_wbc_with_rl" value="$(arg sim_keep_wbc_with_rl)"/>
         <arg name="sim_rl_debug_zero_action" value="$(arg sim_rl_debug_zero_action)"/>
+        <arg name="sim_rl_debug_hold_seed_action" value="$(arg sim_rl_debug_hold_seed_action)"/>
+        <arg name="sim_rl_use_wbc_seed" value="$(arg sim_rl_use_wbc_seed)"/>
+        <arg name="sim_rl_seed_blend_sec" value="$(arg sim_rl_seed_blend_sec)"/>
+        <arg name="sim_rl_spawn_pitch_rad" value="$(arg sim_rl_spawn_pitch_rad)"/>
         <arg name="sim_wbc_rl_action_blend" value="$(arg sim_wbc_rl_action_blend)"/>
         <arg name="sim_wbc_rl_blend_start" value="$(arg sim_wbc_rl_blend_start)"/>
         <arg name="sim_wbc_rl_blend_ramp_sec" value="$(arg sim_wbc_rl_blend_ramp_sec)"/>

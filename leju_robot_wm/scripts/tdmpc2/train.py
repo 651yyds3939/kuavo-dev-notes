@@ -67,7 +67,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 		env = multi_agent_to_single_agent(env)
 
 	device = agent_cfg.device
-	wm_env = TDMPC2VecEnv(env, device=device, action_scale=getattr(agent_cfg, "action_scale", 0.30))
+	wm_env = TDMPC2VecEnv(env, device=device, action_scale=getattr(agent_cfg, "action_scale", 1.0))
 	runner = TDMPC2Runner(wm_env, agent_cfg, log_dir=log_dir, device=device)
 
 	dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)

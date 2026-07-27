@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import torch
@@ -9,7 +10,7 @@ from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.sensors import ContactSensor, RayCaster
 from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.managers.manager_base import ManagerTermBase
-from omni.isaac.lab.utils.math import quat_rotate_inverse, yaw_quat
+from omni.isaac.lab.utils.math import quat_apply, quat_rotate_inverse, yaw_quat
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedRLEnv, ManagerBasedEnv
@@ -144,6 +145,26 @@ def reference_joint_pos_rel(
     return target_joint_pos - default_joint_pos
 
 
+def reference_joint_pos_rel_arms_csv_legs_standing(
+    env: ManagerBasedRLEnv,
+    csv_path: str,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Reference observation for arms-only dance: legs use fixed standing pose, arms use CSV.
+
+    v16 still exposed moving CSV leg targets in the observation while rewarding fixed legs,
+    which gives the policy conflicting signals and can cause leg trembling. This keeps the
+    26-D observation shape unchanged but aligns the reference with the reward design.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    target_joint_pos = _get_csv_target_joint_pos(env, csv_path).clone()
+    standing = torch.tensor(_KUAVO_STANDING_LEG_POS, device=env.device, dtype=torch.float32)
+    target_joint_pos[:, :12] = standing.unsqueeze(0)
+    joint_ids, _ = _resolve_gym_joint_ids(asset)
+    default_joint_pos = asset.data.default_joint_pos[:, joint_ids]
+    return target_joint_pos - default_joint_pos
+
+
 def _get_csv_target_joint_pos(env: ManagerBasedRLEnv, csv_path: str) -> torch.Tensor:
     traj_tensor = _load_csv_to_cache(csv_path, env.device)
     num_frames = traj_tensor.shape[0]
@@ -257,6 +278,57 @@ def penalty_foot_pitch_deviation(
     return torch.mean(torch.square(current_joint_pos - target_joint_pos), dim=1)
 
 
+def penalty_foot_link_flat_l2(
+    env: ManagerBasedRLEnv,
+    sensor_cfg: SceneEntityCfg,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    contact_threshold: float = 1.0,
+    min_upright: float = 0.75,
+) -> torch.Tensor:
+    """Penalize foot link tilt while upright and in contact (toe-up / heel-only cheat).
+
+    Uses foot-link +Z alignment with world up (robust vs URDF frame conventions).
+    Gated by torso upright so fallen robots do not receive spurious gradients.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    contacts = (
+        contact_sensor.data.net_forces_w_history[:, -1, sensor_cfg.body_ids, :].norm(dim=-1)
+        > contact_threshold
+    )
+    asset: Articulation = env.scene[asset_cfg.name]
+    foot_quat_w = asset.data.body_quat_w[:, asset_cfg.body_ids]
+    num_feet = foot_quat_w.shape[1]
+    local_up = torch.tensor([0.0, 0.0, 1.0], device=env.device, dtype=torch.float32)
+    local_up = local_up.view(1, 1, 3).expand(env.num_envs, num_feet, 3)
+    quat_flat = foot_quat_w.reshape(-1, 4)
+    up_flat = local_up.reshape(-1, 3)
+    foot_up_w = quat_apply(quat_flat, up_flat).view(env.num_envs, num_feet, 3)
+    # flat sole: foot +Z ~ world +Z  →  foot_up_w[:,:,2] ~ 1
+    misalign = torch.square(1.0 - torch.clamp(foot_up_w[:, :, 2], min=-1.0, max=1.0))
+    gate = _upright_factor(asset, min_upright).unsqueeze(1)
+    return torch.sum(misalign * contacts * gate, dim=1)
+
+
+def feet_contact_force_velocity(
+    env: ManagerBasedRLEnv,
+    sensor_cfg: SceneEntityCfg,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    force_velocity_threshold: float = 100.0,
+) -> torch.Tensor:
+    """Penalize high foot contact force × velocity (discourage unstable heel scraping)."""
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    contact_force_norm = torch.norm(
+        contact_sensor.data.net_forces_w_history[:, -1, sensor_cfg.body_ids, :], dim=-1
+    )
+    asset: Articulation = env.scene[asset_cfg.name]
+    body_vel = asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :]
+    velocity_norm = torch.norm(body_vel, dim=-1)
+    violation = torch.clamp(
+        contact_force_norm * velocity_norm - force_velocity_threshold, min=0.0
+    )
+    return torch.sum(violation / force_velocity_threshold, dim=1)
+
+
 def base_lin_vel_xy_l2_stationary(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -295,6 +367,162 @@ def penalty_leg_joint_acc_l2(
     asset: Articulation = env.scene[asset_cfg.name]
     joint_ids = _resolve_named_joint_ids(asset, LEG_GYM_JOINT_NAMES)
     return torch.sum(torch.square(asset.data.joint_acc[:, joint_ids]), dim=1)
+
+
+def penalty_feet_motion_l2(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Penalize foot-link motion in all directions for an arms-only in-place policy."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    foot_vel = asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :]
+    return torch.sum(torch.square(foot_vel), dim=(1, 2))
+
+
+def penalty_feet_airborne(
+    env: ManagerBasedRLEnv,
+    sensor_cfg: SceneEntityCfg,
+    grace_time: float = 0.04,
+) -> torch.Tensor:
+    """Penalize sustained foot lifting while allowing brief contact-estimation flicker."""
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    air_time = contact_sensor.data.current_air_time[:, sensor_cfg.body_ids]
+    return torch.sum(torch.clamp(air_time - grace_time, min=0.0), dim=1)
+
+
+# Kuavo S49 默认站姿（来自 CSV 第1帧，膝盖弯曲 ~30° 踝关节 ~-17°）
+_KUAVO_STANDING_LEG_POS = [
+    -0.0000, -0.0002, -0.2701, 0.5199, -0.3000, -0.0000,
+    -0.0000, -0.0002, -0.2697, 0.5200, -0.3003, -0.0000,
+]
+
+
+def penalty_leg_deviation_standing(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Penalize leg joints deviating from the natural bent-knee standing posture."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    joint_ids = _resolve_named_joint_ids(asset, LEG_GYM_JOINT_NAMES)
+    standing = torch.tensor(_KUAVO_STANDING_LEG_POS, device=env.device, dtype=torch.float32)
+    current = asset.data.joint_pos[:, joint_ids]
+    return torch.sum(torch.abs(current - standing), dim=1)
+
+
+def track_leg_standing_upright_exp(
+    env: ManagerBasedRLEnv,
+    std: float = 0.30,
+    min_upright: float = 0.85,
+    min_height: float | None = 0.72,
+    target_height: float = 0.87,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Reward legs for maintaining natural standing posture (knee ~30°, ankle ~-17°).
+    
+    Critical insight from v2/v15 comparison: This is NOT just a constraint, it's the
+    stability pillar. The exp+gate structure creates a bounded [0,1] attractor that
+    PPO loves, identical to v2's track_punch_legs but targeting fixed standing pose
+    instead of CSV dancing legs.
+    
+    This simultaneously:
+    1. Inherits v2's stability (same reward structure)
+    2. Keeps legs still (target = standing pose, not CSV)
+    3. Prevents hook-foot (ankle target = -0.30 rad = natural flat)
+    
+    Why exp+gate beats L1 penalty (v15's joint_deviation_legs):
+    - Positive feedback ("stand well = get paid") vs negative ("move = lose money")
+    - Bounded [0,1] vs unbounded negative
+    - Upright-gated (syncs with arm rewards) vs always-on
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    joint_ids = _resolve_named_joint_ids(asset, LEG_GYM_JOINT_NAMES)
+    standing = torch.tensor(_KUAVO_STANDING_LEG_POS, device=env.device, dtype=torch.float32)
+    current = asset.data.joint_pos[:, joint_ids]
+    err = torch.mean(torch.square(current - standing), dim=1)
+    track_reward = torch.exp(-err / std**2)
+    return track_reward * _standing_gate(asset, min_upright, min_height, target_height)
+
+
+def track_ankle_pitch_standing_exp(
+    env: ManagerBasedRLEnv,
+    std: float = 0.12,
+    min_upright: float = 0.85,
+    min_height: float | None = 0.72,
+    target_height: float = 0.87,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Dedicated positive reward for keeping ankle pitch at the natural flat-foot angle.
+
+    The whole-leg standing reward averages 12 joints, so ankle hook-foot can be diluted.
+    This term isolates leg_l5/leg_r5 and softly attracts them to -0.30 rad without using
+    foot-link flatness constraints, which previously caused jitter or early death.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    ankle_names = ["leg_l5_joint", "leg_r5_joint"]
+    joint_ids = _resolve_named_joint_ids(asset, ankle_names)
+    target = torch.tensor([-0.3000, -0.3003], device=env.device, dtype=torch.float32)
+    current = asset.data.joint_pos[:, joint_ids]
+    err = torch.mean(torch.square(current - target), dim=1)
+    return torch.exp(-err / std**2) * _standing_gate(asset, min_upright, min_height, target_height)
+
+
+def penalty_ankle_pitch_standing_soft(
+    env: ManagerBasedRLEnv,
+    tolerance: float = 0.08,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Soft dead-zone penalty for ankle pitch deviation from flat-foot standing angle.
+
+    Uses a tolerance so the policy can still make small balance corrections. This is much
+    gentler than the failed foot-link flat constraints and should not dominate stability.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    ankle_names = ["leg_l5_joint", "leg_r5_joint"]
+    joint_ids = _resolve_named_joint_ids(asset, ankle_names)
+    target = torch.tensor([-0.3000, -0.3003], device=env.device, dtype=torch.float32)
+    current = asset.data.joint_pos[:, joint_ids]
+    violation = torch.clamp(torch.abs(current - target) - tolerance, min=0.0)
+    return torch.mean(torch.square(violation), dim=1)
+
+
+def _reset_all_joints(
+    env: ManagerBasedEnv, env_ids: torch.Tensor, joint_pos: torch.Tensor, joint_vel: torch.Tensor
+):
+    """Set joints into sim (helper to avoid code duplication)."""
+    asset: Articulation = env.scene["robot"]
+    joint_pos_limits = asset.data.soft_joint_pos_limits[env_ids]
+    joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
+    asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+
+
+def reset_legs_to_standing(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+):
+    """Spawn leg joints at natural standing posture (knees ~30°) with ±5% noise;
+    arms reset to default with ±5% noise (same as standard reset_joints_by_scale)."""
+    asset: Articulation = env.scene[asset_cfg.name]
+
+    leg_ids = _resolve_named_joint_ids(asset, LEG_GYM_JOINT_NAMES)
+    standing = torch.tensor(_KUAVO_STANDING_LEG_POS, device=env.device, dtype=torch.float32)
+
+    n = len(env_ids)
+    n_all = asset.data.default_joint_pos.shape[1]
+
+    # start from default (URDF zero → arm reference)
+    joint_pos = asset.data.default_joint_pos[env_ids].clone()
+    joint_vel = torch.zeros(n, n_all, device=env.device)
+
+    # arms: scale default by ±5% (same as standard reset_joints_by_scale)
+    arm_noise = (0.95 + 0.10 * torch.rand(n, n_all, device=env.device))
+    joint_pos *= arm_noise
+
+    # legs: OVERWRITE with standing posture + ±5% noise
+    leg_noise = 0.95 + 0.10 * torch.rand(n, len(standing), device=env.device)
+    joint_pos[:, leg_ids] = standing.unsqueeze(0) * leg_noise
+
+    _reset_all_joints(env, env_ids, joint_pos, joint_vel)
 
 
 def base_ang_vel_yaw_l2_stationary(

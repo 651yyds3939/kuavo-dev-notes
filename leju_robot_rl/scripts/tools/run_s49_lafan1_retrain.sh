@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# S49 舞蹈 RL 重训入口（v8 奖励 + S54 原生 CSV）
+# S49 舞蹈 RL 重训入口（v18：双脚静止接触 + 腿部连续微调 + 手臂 CSV）
 # =============================================================================
 #
 # 用法（在 leju_robot_rl 仓库根目录）:
@@ -59,7 +59,7 @@ bash scripts/tools/setup_s49_training_assets.sh
 # -----------------------------------------------------------------------------
 # [2/2] 清理 USD 缓存并启动训练
 #   - /tmp/IsaacLab/usd_* 残留可能导致加载旧场景或 OOM，开训前删掉
-#   - punch_env_cfg.py 中 DANCE_CSV / v6 奖励权重在此生效
+#   - punch_env_cfg.py 中 DANCE_CSV / v10 奖励权重在此生效
 #   - 训练结束或中断后 train.py 会自动写 RUN_CONFIG.md
 # -----------------------------------------------------------------------------
 echo "==> [2/2] Clean stale USD cache + start training"
@@ -67,7 +67,7 @@ rm -rf /tmp/IsaacLab/usd_*
 
 echo "Training CSV : kuavo_action_S49_FROM_S54_INPLACE_RAD.csv"
 echo "num_envs       : ${NUM_ENVS}"
-echo "Reward profile : v8（v7 防漂移 + 强 smoothness / 宽 mimic std / 抑腿抖）"
+echo "Reward profile : v18（双脚静止接触，禁止小碎步，腿仅作连续平衡微调，手臂CSV）"
 echo "Log directory  : logs/rsl_rl/Kuavo/s49/dance/<timestamp>/"
 
 python3 scripts/rsl_rl/train.py \

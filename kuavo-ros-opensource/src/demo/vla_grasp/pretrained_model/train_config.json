@@ -1,7 +1,7 @@
 {
     "dataset": {
         "repo_id": "local/kuavo_vla_grasp",
-        "root": "~/kuavo_all/lerobot_kuavo_grasp_batch2",
+        "root": "/home/lwy/kuavo_all/lerobot_kuavo_grasp_batch2",
         "episodes": null,
         "image_transforms": {
             "enable": false,

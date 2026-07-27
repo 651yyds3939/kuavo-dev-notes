@@ -145,6 +145,7 @@ namespace humanoid_controller
     void beginPureRlTorqueCrossfade();
     void beginRlSpawnSettle();
     void activateRlControllerFromStart(bool blend_from_wbc = false);
+    void initializePureRlSeed(const vector_t &rbd_state);
     std::map<std::string, int> joyButtonMap = {
         {"BUTTON_STANCE", 0},
         {"BUTTON_TROT", 1},
@@ -309,6 +310,10 @@ namespace humanoid_controller
     bool rl_from_start_{false};
     bool sim_keep_wbc_with_rl_{true};
     bool sim_rl_debug_zero_action_{false};
+    bool sim_rl_debug_hold_seed_action_{false};
+    bool sim_rl_use_wbc_seed_{true};
+    double sim_rl_seed_blend_sec_{2.0};
+    double sim_rl_spawn_pitch_rad_{0.0};
     double sim_wbc_rl_action_blend_{0.45};
     double sim_wbc_rl_blend_start_{0.45};
     double sim_wbc_rl_blend_ramp_sec_{0.0};

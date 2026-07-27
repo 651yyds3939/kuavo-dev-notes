@@ -218,13 +218,19 @@ def execute_single_pose(arm_pub, joints_14_rad, time_sec, step_name="", is_left_
     time.sleep(time_sec + 0.5)
 
 def _ik_group_profile(is_left_arm):
-    """视觉/厂家 IK 目标在夹爪 TCP，对应 URDF 的 *_end_effector（非 wrist link）。"""
+    """IK 目标：左手用 URDF 虚拟指尖，右手不变。"""
     if is_left_arm:
-        return "left_arm", "zarm_l7_end_effector"
+        return "left_arm", "left_gripper_tip"
     return "right_arm", "zarm_r7_end_effector"
 
 def _ee_link_candidates(primary_ee_link):
-    """优先 TCP end_effector，失败再回退 wrist link。"""
+    """优先 gripper_tip，失败回退 end_effector，再失败回退 wrist link。"""
+    if primary_ee_link.endswith("_gripper_tip"):
+        return [
+            primary_ee_link,
+            primary_ee_link.replace("_gripper_tip", "_end_effector"),
+            primary_ee_link.replace("_gripper_tip", "_link"),
+        ]
     if primary_ee_link.endswith("_end_effector"):
         return [primary_ee_link, primary_ee_link.replace("_end_effector", "_link")]
     return [primary_ee_link]

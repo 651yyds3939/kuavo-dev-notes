@@ -5,14 +5,14 @@ actionScale        0.30    ; 与训练 punch_env_cfg actionScale 一致
 frameStack         1      ; 多长时间步的obs
 numSingleObs       115     ; 89 + referenceJointPos(26)
 cycleTime          31.30   ; 1565帧CSV / 50Hz推理，与 S49 训练 action_phase 一致
-danceCsvFile       kuavo_action_S49_FROM_S54_INPLACE_RAD.csv
+danceCsvFile       kuavo_action_S49_V18_ARMS_ONLY_RAD.csv ; v18训练观测：腿固定站姿，手臂跟随原CSV
 phase              0       ; 初始相位设置为0
 episodeLength      0       ; 用于计算相位
 clipObservations   10000.0    ; 用于对输入进行clip
 clipActions        8.0    ; deploy WBC path: cap policy (Isaac 100 ok with native PD; WBC needs smaller)
 ankleSolverType    1       ; 用于仿真中关节换算版本指定 0:旧版本 1:新版本
 
-networkModelFile          /49duck_sit.onnx; 
+networkModelFile          /49dance_v18.onnx;
 
 commandData 
 {
@@ -154,7 +154,7 @@ JointPDMode
 
 jointKp
 {
-    ; 🟢 克隆 env.yaml 黄金控制增益，阻断一切软脚倒下
+    ; 与 Isaac Lab v18 的 DelayedPDActuator_S49 增益一致
     (0,0)   100.0   ; leg_l1_joint
     (1,0)   100.0   ; leg_l2_joint
     (2,0)   100.0   ; leg_l3_joint
@@ -185,7 +185,7 @@ jointKp
 
 jointKd
 {
-    ; 🟢 克隆 env.yaml 黄金阻尼增益
+    ; 与 Isaac Lab v18 的 DelayedPDActuator_S49 阻尼一致
     (0,0)   4.0   ; leg_l1_joint
     (1,0)   4.0   ; leg_l2_joint
     (2,0)   4.0   ; leg_l3_joint

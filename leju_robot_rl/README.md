@@ -60,7 +60,7 @@ bash scripts/tools/run_s49_lafan1_retrain.sh # 转换 CSV + 训练
 TensorBoard：`logs/rsl_rl/Kuavo/s49/dance/` 
 导出 ONNX 后拷贝至 `kuavo-rl-opensource/kuavo-robot-deploy/.../networks/`。
 
-细节见 **s49/README.md** 与 **kuavo_notes/23.3–23.6**。
+细节见 **s49/README.md** 与 **kuavo_notes/23.3–23.7**。
 
 ---
 

@@ -6,7 +6,7 @@
 
 ## 开发状态（给克隆者）
 
-部署仓随 [`leju_robot_rl`](../leju_robot_rl/) 训练侧**同步迭代**：`humanoidController.cpp`、`.info` 与 `policy_*.onnx` 需与当前训练 run 对齐。**仓库内 ONNX 一般不保证为最新最优 checkpoint**；请自行训练导出后再拷贝至 `kuavo-robot-deploy/.../networks/`。Sim2Sim / 真机步骤见 [`kuavo_notes/15.4`](../kuavo_notes/15.4RL_lab_sim_to_real.md)、[`23.5–23.6`](../kuavo_notes/23.5.RL_dance_deploy_hybrid.md)。
+部署仓随 [`leju_robot_rl`](../leju_robot_rl/) 训练侧**同步迭代**：`humanoidController.cpp`、`.info` 与 `policy_*.onnx` 需与当前训练 run 对齐。**仓库内 ONNX 一般不保证为最新最优 checkpoint**；请自行训练导出后再拷贝至 `kuavo-robot-deploy/.../networks/`。Sim2Sim / 真机步骤见 [`kuavo_notes/15.4`](../kuavo_notes/15.4RL_lab_sim_to_real.md)、[`23.5–23.7`](../kuavo_notes/23.5.RL_dance_deploy_hybrid.md)。
 
 ## 结构
 
@@ -22,7 +22,7 @@
 | 主题 | 文档 |
 |------|------|
 | Lab 行走部署 | [`kuavo_notes/15.4`](../kuavo_notes/15.4RL_lab_sim_to_real.md) |
-| S49 舞蹈部署 | [`kuavo_notes/23.4–23.6`](../kuavo_notes/23.4.RL_dance_sim2sim.md) |
+| S49 舞蹈部署 | [`kuavo_notes/23.4–23.7`](../kuavo_notes/23.4.RL_dance_sim2sim.md) |
 | 部署操作 | [`kuavo-robot-deploy/readme.md`](./kuavo-robot-deploy/readme.md) |
 
 ---

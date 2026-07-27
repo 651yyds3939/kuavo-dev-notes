@@ -231,7 +231,7 @@ class KuavoTDMPC2Config:
 	obs_shape: tuple = field(default_factory=lambda: (OBS_PROFILES["dance"].obs_dim,))
 	action_shape: tuple = ACTION_SHAPE
 	action_dim: int = ACTION_DIM
-	action_scale: float = 0.30
+	action_scale: float = 1.0
 	latent_dim: int = 512
 	enc_dim: int = 256
 	mlp_dim: int = 512

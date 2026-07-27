@@ -702,7 +702,10 @@ void updateForceArrow() {
         const int da = rl_joint_map.dof_adr[i];
         const double q = data->qpos[qa];
         const double v = data->qvel[da];
-        const double q_des = i < cmd.joint_q.size() ? cmd.joint_q[i] : q;
+        // Before first RL command, hold spawn posture (qpos_init) instead of
+        // zero-torque freefall. Falls back to current q only if qpos_init unavailable.
+        const double q_des = i < cmd.joint_q.size() ? cmd.joint_q[i]
+                           : (qa < qpos_init.size() ? qpos_init[qa] : q);
         const double v_des = i < cmd.joint_v.size() ? cmd.joint_v[i] : 0.0;
         const double kp = i < cmd.joint_kp.size() ? cmd.joint_kp[i] : 0.0;
         const double kd = i < cmd.joint_kd.size() ? cmd.joint_kd[i] : 0.0;
@@ -1199,6 +1202,20 @@ void PhysicsThread(mj::Simulate *sim, const char *filename)
           std::cout << qpos_init_temp[i] << ", ";
         }
         std::cout << std::endl;
+        // Pre-load pending command with standing posture so the RL-native PD
+        // holds the robot from the very first physics step (before /joint_cmd).
+        if (rl_joint_map.valid)
+        {
+          pending_joint_cmd.use_rl_native_pd = true;
+          pending_joint_cmd.joint_q.resize(rl_joint_map.qpos_adr.size());
+          pending_joint_cmd.joint_v.resize(rl_joint_map.qpos_adr.size(), 0.0);
+          pending_joint_cmd.joint_kp.resize(rl_joint_map.qpos_adr.size(), 100.0);
+          pending_joint_cmd.joint_kd.resize(rl_joint_map.qpos_adr.size(), 4.0);
+          pending_joint_cmd.tau.resize(rl_joint_map.qpos_adr.size(), 0.0);
+          for (size_t i = 0; i < rl_joint_map.qpos_adr.size(); ++i)
+            pending_joint_cmd.joint_q[i] = qpos_init[rl_joint_map.qpos_adr[i]];
+          ROS_INFO("[mujoco_node] Pre-loaded pending_joint_cmd from qpos_init (RL native PD hold)");
+        }
         break;
       }
       else

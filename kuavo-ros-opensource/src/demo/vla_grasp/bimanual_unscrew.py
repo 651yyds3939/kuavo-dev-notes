@@ -26,6 +26,7 @@ import rospy
 from geometry_msgs.msg import PoseStamped, PointStamped
 from moveit_msgs.msg import MoveItErrorCodes
 from moveit_msgs.srv import GetPositionIK, GetPositionIKRequest
+from moveit_msgs.srv import GetPositionFK, GetPositionFKRequest
 from sensor_msgs.msg import JointState
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -71,28 +72,59 @@ _EMERGENCY_CTX = {
 # 默认几何参数（可通过 ROS param ~ 覆盖，见 load_params()）
 DEFAULTS = {
     "bottle_cap_rise_m": 0.12,       # 抓握高度到瓶盖中心的竖直距离
-    "cap_offset_x_m": 0.0,           # 瓶盖相对视觉点 X 偏置
+    # ── HSV 瓶盖检测（上位机 Orin 发布 /vla/cap_target，替代几何推算）──
+    "use_hsv_cap": True,             # 优先使用 /vla/cap_target，无数据时回退几何
+    "cap_offset_x_m": 0.0,           # 瓶盖相对视觉点 X 偏置（仅几何推算模式）
     "cap_offset_y_m": 0.0,           # 瓶盖相对视觉点 Y 偏置
     # 瓶盖 XY 基准：vision=仅视觉 | right_grasp=右手抓点+偏移（推荐）| blend=融合
     "cap_reference_mode": "right_grasp",
     "cap_blend_grasp_weight": 0.65,
     "cap_from_grasp_x_m": 0.022,
     "cap_from_grasp_y_m": -0.050,
-    "left_tcp_extra_x_m": -0.010,    # 负=往后(-X) 1cm
-    "left_tcp_extra_y_m": 0.035,     # 正=往左(+Y) 3.5cm（含此前微调）
-    "left_tcp_extra_z_m": -0.006,    # 负=降低触顶高度
+    # ── 左手落点微调 left_tcp_extra_*（叠加 MoveIt 左手 TCP 后作用于 IK 位置）──
+    # base_link：X 前 / Y 左 / Z 上。每次 ±0.002m（2mm）试一档。
+    #
+    # 【重要】approach_pitch=-π/2 时，姿态 yaw=atan2(cap_y, cap_x)。
+    # 若 extra 同时参与 yaw 计算，改 extra_x 会「转臂+平移」耦合，目视像没效果。
+    # left_cap_yaw_decouple_extra=true（默认）时：extra 只平移 IK 位置，不改变 yaw。
+    # 验证是否生效：看日志「瓶盖 X 链」里 IK_x 是否随 extra_x 变化（±0.1 应差 20cm）。
+    #
+    #   现象              调参方向                    示例
+    #   偏前              减小 left_tcp_extra_x_m     _left_tcp_extra_x_m:=-0.060
+    #   偏后              增大 left_tcp_extra_x_m     _left_tcp_extra_x_m:=-0.048
+    #   偏左              减小 left_tcp_extra_y_m     _left_tcp_extra_y_m:=-0.044
+    #   偏右              增大 left_tcp_extra_y_m     _left_tcp_extra_y_m:=-0.032
+    #   偏低              增大 left_tcp_extra_z_m     _left_tcp_extra_z_m:=0.004
+    #   偏高              减小 left_tcp_extra_z_m     _left_tcp_extra_z_m:=-0.004
+    #
+    # 启动日志 left_extra=(x,y,z) 与「瓶盖 X 链」一并核对；阶段 C 前只动本三项。
+    "left_cap_yaw_decouple_extra": True,  # extra 不参与 yaw，避免 extra_x「调了不动」
+    # 实机标定 2026-06：URDF left_gripper_tip + HSV 瓶盖落点补偿。
+    # 标定点约 cap=(0.48,-0.06)，大范围换位时后续应升级为 yaw-frame/多点拟合补偿。
+    "left_tcp_extra_x_m": -0.030,
+    "left_tcp_extra_y_m": -0.040,
+    "left_tcp_extra_z_m": 0.00,
     # 左手拧盖：水平夹爪(CLAW_ROLL 同右手) + 垂直接近(基座 pitch 与右手侧夹不同)
     "left_cap_approach_pitch_rad": -1.57079633,  # 与右手侧夹同款；实机直连 IK 稳定
-    "left_cap_roll_extra_rad": 0.08,
-    "left_cap_pitch_extra_rad": 0.0,
+    "left_cap_roll_extra_rad": -0.300,
+    "left_cap_pitch_extra_rad": 0.050,
     "left_cap_base_roll_extra_rad": 0.0,   # 调平改 l5 关节偏置；quat roll 易坏 IK
     "left_cap_yaw_offset_rad": 0.0,
+    # 仅拧松模式叠加的初始水平偏航：负值使左爪朝右预偏，给逆时针旋转留余量。
+    "left_cap_loosen_yaw_offset_rad": -0.35,
+    # 拧松专用初始姿态/动态补偿；不影响 tighten 的已标定参数。
+    "left_cap_loosen_pitch_extra_rad": 0.050,
+    # 拧松初始落点单独下移，不改变 tighten 的 left_tcp_extra_z。
+    "left_cap_loosen_tcp_extra_z_m": -0.005,
+    # 拧松旋转补偿独立标定：Y=0 取消原先每度向左 1mm；正 Z 抵消实机下沉。
+    "left_cap_loosen_y_comp_per_deg_m": 0.0,
+    "left_cap_loosen_z_comp_per_deg_m": 0.001,
+    "left_cap_loosen_pitch_comp_deg_per_deg": 0.0,
     # 触顶后调平偏置（相对 IK 解；不改 IK 目标，仅触顶停稳后叠加）
-    # l5 主：小臂+腕部整体旋转，决定夹爪是否水平
-    # l6 辅：夹爪俯仰/上下倾微调
+    # l5 主：小臂+腕部整体旋转；l6 辅：夹爪俯仰（前高后低 → l6 更负 = 前端下压）
     # l7 不参与调平（水平时 l7 为绕夹爪 z 轴拧盖，见 twist_cap）
-    "left_cap_wrist5_bias_rad": -0.250,    # l5 ≈ -14.3°（原 -22° 的 65%）
-    "left_cap_wrist6_bias_rad": -0.023,    # l6 ≈ -1.3°（原 -2° 的 65%）
+    "left_cap_wrist5_bias_rad": 0.0,    # l5 ≈ -14.3°
+    "left_cap_wrist6_bias_rad": 0.005,  # l6 实机调平微调
     "left_level_bias_contact_only": True, # 仅触顶/夹爪时加 l5/l6，接近与下降 IK 不加
     # 左手 IK 降级：高位无解时降 Z / 换 pitch（右手侧夹 -π/2）
     "left_ik_high_z_drop_m": [0.0, -0.03, -0.05],
@@ -101,7 +133,7 @@ DEFAULTS = {
     # 右手微抬时瓶盖 Z 跟随比例（1.0=全跟；瓶身软/打滑时实际抬升远小于臂端）
     "cap_z_lift_scale": 0.2,
     "cap_re_vision_after_grasp": False,  # 抓后倾斜时 YOLO 中心漂移，反而破坏瓶盖 XY
-    "cap_re_vision_frames": 5,
+    "cap_re_vision_frames": 5,                        
     "cap_xy_refine_enable": False,   # 默认关：25点×2IK≈40s，易误以为死循环
     "cap_xy_refine_step_m": 0.003,   # 精搜步长 3mm
     "cap_xy_refine_half_steps": 1,   # 开启时 3×3=9 点（±3mm）
@@ -123,23 +155,65 @@ DEFAULTS = {
     "arm_hold_republish_hz": 20.0,   # 段末按固定关节角重复下发，稳住右手
     # 右手抓瓶 Z：在 SAFE_LOCKED_Z 基础上微调（负=更低，抓瓶身下半部）
     "right_grasp_z_offset_m": -0.03,
-    # 拧盖：cycle_ik=TCP 固定 + 绕竖直 z 转（全臂 IK 补偿，保持水平）；joint_l7=旧版仅加 l7
-    "left_cap_twist_mode": "cycle_ik",
-    "left_cap_twist_cycle_deg": 90.0,       # 每周期 l7 等价转角（分步 IK 合成）
-    "left_cap_twist_cycles": 4,           # 4×90°≈一圈；0 同 twist_steps=0 跳过
-    "left_cap_twist_step_deg": 15.0,      # 周期内细分，IK 插值
+    # 拧盖：in_place_ik=固定指尖 XYZ + 姿态绕竖直 z 转；cycle_ik=旧轨道棘轮；joint_l7=旧版仅加 l7
+    "left_cap_twist_mode": "in_place_ik",
+    # 动作开关：tighten=顺时针拧紧（负角度），loosen=逆时针拧松（正角度）。
+    # 拧松当前仅复用拧紧补偿，后续仍需实机单独标定。
+    "left_cap_twist_action": "tighten",
+    "left_cap_twist_cycle_deg": -15.0,
+    "left_cap_twist_cycles": 5,
+    "left_cap_twist_step_deg": 0.5,
     "left_cap_twist_step_sec": 0.45,
-    "left_cap_twist_face_right_yaw_rad": -1.57079633,  # 拧前夹爪朝右(+X)；实机可微调
-    "left_cap_twist_reclose": True,        # 每周期松爪回正后再夹紧
-    "left_cap_twist_release_pos": 12.0,   # 周期末左爪松开
+    "left_cap_twist_cartesian_max_step_deg": 0.25,
+    "left_cap_twist_cartesian_deg_per_sec": 8.0,
+    "left_cap_twist_fk_xy_tolerance_m": 0.0025,
+    "left_cap_twist_fk_z_tolerance_m": 0.0015,
+    "left_cap_twist_joint_jump_deg": 8.0,
+    # 实机标定的有效夹持旋转中心（zarm_l7_end_effector 局部坐标，m）。
+    "left_cap_twist_pivot_ee_m": [0.018, 0.010, -0.0525],
+    # 世界坐标平移补偿（m/deg）：随绝对累计转角线性变化，回正时自动归零。
+    # base_link 中 +X=前、+Y=左；实机向右漂时使用正的 Y 补偿。
+    "left_cap_twist_x_comp_per_deg_m": 0.001,
+    "left_cap_twist_y_comp_per_deg_m": 0.001,
+    # 与当前有效 TCP 配套的实机动态高度补偿。
+    "left_cap_twist_z_comp_per_deg_m": -0.0022,
+    "left_cap_twist_pitch_offset_deg": 0.0,
+    "left_cap_twist_prelevel_sec": 2.0,
+    "left_cap_twist_prelevel_step_deg": 0.25,
+    "left_cap_twist_pitch_comp_deg_per_deg": -0.60,
+    # 实机夹爪前后俯仰轴；当前安装中 local_x 对应尖端上下，local_y 对应左右侧倾。
+    "left_cap_twist_level_axis": "local_x",
+    # world_horizontal=将上述局部轴投影到世界水平面并固定，避免随拧盖 yaw 一起转。
+    "left_cap_twist_pitch_comp_frame": "world_horizontal",
+    "left_cap_twist_use_contact_yaw": True,   # 拧盖沿用触顶 yaw，不额外朝右偏航
+    "left_cap_twist_skip_align": True,        # 夹紧后不重对准，直接绕 Z 拧
+    "left_cap_twist_fallback_joint_l7": True, # cycle_ik 转不动时回退 l7
+    "left_cap_twist_face_right_yaw_rad": -1.57079633,  # 仅 use_contact_yaw=False 时叠加
+    "left_cap_twist_reclose": True,        # 每轮松爪、回正并重新夹紧
+    "left_cap_twist_release_pos": 35.0,    # 周期末左爪松开
+    "left_cap_twist_direct_l7_enable": False, # 固定指尖XYZ走连续IK
+    "left_cap_twist_seed_l7_enable": True,    # direct_l7=False时，用预旋l7的seed引导IK补偿偏心
     "twist_deg_per_step": 8.0,            # joint_l7 模式专用
     "twist_steps": 15,
-    "left_cap_close_pos": 78.0,      # 拧盖最终闭合（0=开 100=关；claw_safe 硬顶 85）
-    "left_cap_effort": 0.58,         # 夹盖力矩（claw_safe 硬顶 0.6A）
-    "left_cap_close_ramp_enable": True,   # 从 preclose 分步闭合，触阻即停
-    "left_cap_close_ramp_step": 5.0,      # 每步 +5（35→40→…→78）
-    "left_cap_close_effort_stop": 0.32,   # 左爪 effort 达此值视为夹到盖
-    "right_hold_after_grasp": True,  # 抓后是否微抬 5cm 给左手腾空间
+    "left_cap_close_pos": 98.0,      # 拧盖最终闭合（claw_safe max_close_pos 默认 98）
+    "left_cap_effort": 1.0,          # 夹盖力矩（接口文档推荐 1~2A）
+    "left_cap_close_ramp_enable": False,   # 分步闭合；每步须等 Reached 再发下一条
+    "left_cap_close_ramp_step": 8.0,      # 步长 8，减少指令次数
+    "left_cap_close_ramp_sleep_sec": 0.0,
+    "left_cap_close_wait_sec": 0.25,        # call() 内短轮询
+    "left_cap_close_settle_sec": 2.5,       # 每步等左爪 Reached 的最长时间
+    "left_cap_close_retries": 4,            # 单步服务失败重试
+    "left_cap_close_effort_stop": 0.50,
+    "left_cap_close_min_pos": 80.0,
+    "left_cap_final_squeeze_enable": False,
+    "left_cap_final_squeeze_sec": 1.0,
+    "left_cap_final_squeeze_passes": 2,
+    # claw_safe 限幅（接口文档 position 0~100、effort 1~2A；比旧版 85/0.6A 略放宽）
+    "claw_max_close_pos": 98.0, 
+    "claw_max_close_effort": 1.2,
+    "claw_stall_effort": 1.5,
+    "claw_wait_sec": 0.6,
+    "right_hold_after_grasp": False,  # 抓后是否微抬 5cm 给左手腾空间
     "right_micro_lift_m": 0.05,
     # 工作空间安全：瓶太远/太偏时拒绝执行（防质心前倾，见 34.two_arm_coordination.md §4.4）
     "bottle_x_min_m": 0.30,        # 与 YOLO 采点下限一致
@@ -147,8 +221,8 @@ DEFAULTS = {
     "bottle_y_max_m": 0.0,         # 双臂右手抓瓶：YOLO Y 必须 ≤0（正=偏左，必歪瓶）
     "bottle_y_min_m": -0.105,      # Y 过负=瓶太偏右，左手侧向/瓶前高位 IK 易无解
     # 右手 TCP 额外补偿（在 moveit_auto_grasp 分参之上）
-    "right_tcp_extra_x_m": 0.009,    # +X 往前（偏后则再 +0.002）
-    "right_tcp_extra_y_m": -0.024,   # +Y 往左（瓶在爪左前方则增大 Y）
+    "right_tcp_extra_x_m": 0.015,    # +X 往前
+    "right_tcp_extra_y_m": -0.023,   # +Y 往左
     # 左手接近速度：仅曲肘→瓶上方段；触顶下降见 left_descend_step_sec（单独控）
     "left_approach_direct_first": True,
     "left_high_approach_m": 0.05,
@@ -167,8 +241,10 @@ DEFAULTS = {
     "left_pre_forward_m": 0.09,
     "left_final_forward_m": 0.06,
     # 右手抓握验收（空抓则中止，不进入左手阶段）
-    "right_grasp_min_close_pos": 55.0,
-    "right_grasp_min_effort": 0.35,
+    # 阈值放低：瓶子细/角度微偏时 effort 可能只有 0.2-0.3，避免误判
+    "right_grasp_min_close_pos": 40.0,
+    "right_grasp_min_effort": 0.05,
+    "right_grasp_accept_close_pos": 70.0,  # 闭合反馈足够大时，即使effort偏低也认为夹到
     # 触顶成功后保存左臂关节，供 left_cap_level_tune.py 无相机复现
     "save_left_tune_pose": False,
     "left_tune_pose_file": "",  # 空=脚本目录下 left_cap_tune_pose.json
@@ -176,6 +252,11 @@ DEFAULTS = {
     # mode=world_z：只沿 base_link 竖直补偿，不引入侧倾（推荐首调）
     # mode=ee：EE 系向量，需实机标定 dx/dy/dz
     "left_claw_tip_enable": False,
+    # ── FK 自动指尖补偿（需 /compute_fk 服务，MoveIt 启动后可用）
+    # 夹爪指尖在 zarm_l7_end_effector 坐标系下的物理偏移 (m)，卡尺量一次永久有效
+    "gripper_tip_dx_m": 0.04,    # end_effector 系 X（大致=上下，正=往上）
+    "gripper_tip_dy_m": -0.03,   # end_effector 系 Y（大致=左右，正=往左）
+    "gripper_tip_dz_m": 0.05,    # end_effector 系 Z（大致=前后，正=往前）
     "left_claw_tip_mode": "world_z",
     "left_claw_tip_world_z_m": 0.012,
     "left_claw_tip_world_z_close_m": 0.015,
@@ -193,7 +274,56 @@ def load_params():
     p = {}
     for key, default in DEFAULTS.items():
         p[key] = rospy.get_param("~" + key, default)
+
+    action = str(p.get("left_cap_twist_action", "tighten")).strip().lower()
+    if action not in ("tighten", "loosen"):
+        rospy.logwarn(
+            "⚠️ left_cap_twist_action=%r 无效，使用默认 tighten（可选 tighten/loosen）",
+            action,
+        )
+        action = "tighten"
+    p["left_cap_twist_action"] = action
+    if action == "loosen":
+        loosen_yaw = float(p.get("left_cap_loosen_yaw_offset_rad", -0.35))
+        p["left_cap_yaw_offset_rad"] = float(p["left_cap_yaw_offset_rad"]) + loosen_yaw
+        p["left_cap_pitch_extra_rad"] = float(
+            p.get("left_cap_loosen_pitch_extra_rad", p["left_cap_pitch_extra_rad"])
+        )
+        p["left_tcp_extra_z_m"] = float(p["left_tcp_extra_z_m"]) + float(
+            p.get("left_cap_loosen_tcp_extra_z_m", -0.005)
+        )
+        p["left_cap_twist_y_comp_per_deg_m"] = float(
+            p.get("left_cap_loosen_y_comp_per_deg_m", p["left_cap_twist_y_comp_per_deg_m"])
+        )
+        p["left_cap_twist_z_comp_per_deg_m"] = float(
+            p.get("left_cap_loosen_z_comp_per_deg_m", p["left_cap_twist_z_comp_per_deg_m"])
+        )
+        p["left_cap_twist_pitch_comp_deg_per_deg"] = float(
+            p.get(
+                "left_cap_loosen_pitch_comp_deg_per_deg",
+                p["left_cap_twist_pitch_comp_deg_per_deg"],
+            )
+        )
+        rospy.loginfo(
+            "🔓 拧松专用补偿: yaw=%.1f° pitch_extra=%.3f static_z=%+.1fmm "
+            "y_comp=%+.3fmm/deg z_comp=%+.3fmm/deg pitch_comp=%.3f°/deg",
+            math.degrees(loosen_yaw), p["left_cap_pitch_extra_rad"],
+            float(p.get("left_cap_loosen_tcp_extra_z_m", -0.005)) * 1000.0,
+            p["left_cap_twist_y_comp_per_deg_m"] * 1000.0,
+            p["left_cap_twist_z_comp_per_deg_m"] * 1000.0,
+            p["left_cap_twist_pitch_comp_deg_per_deg"],
+        )
+    cycle_abs_deg = abs(float(p["left_cap_twist_cycle_deg"]))
+    p["left_cap_twist_cycle_deg"] = -cycle_abs_deg if action == "tighten" else cycle_abs_deg
     return p
+
+
+def apply_claw_safe_limits(params):
+    """在首次 get_controller() 前写入 claw_safe 私有参数。"""
+    rospy.set_param("~claw_max_close_pos", float(params.get("claw_max_close_pos", 98.0)))
+    rospy.set_param("~claw_max_close_effort", float(params.get("claw_max_close_effort", 1.2)))
+    rospy.set_param("~claw_stall_effort", float(params.get("claw_stall_effort", 1.5)))
+    rospy.set_param("~claw_wait_sec", float(params.get("claw_wait_sec", 0.6)))
 
 
 def left_tune_pose_path(params=None):
@@ -334,6 +464,8 @@ def _locked_approach_pitch(params, override=None):
 
 # run_left_unscrew 期间供姿态/腕偏置读取
 _ACTIVE_LEFT_CAP_PARAMS = None
+# IK 位置(含 extra) 与 yaw 参考(不含 extra) 分离，见 left_cap_yaw_decouple_extra
+_ACTIVE_LEFT_CAP_XY = {"yaw_x": None, "yaw_y": None}
 # main 写入，供轨迹稳持参数
 _ACTIVE_ARM_PARAMS = None
 
@@ -403,12 +535,26 @@ def right_locked_xy(raw_x, raw_y, params):
 
 
 def left_cap_locked_xy(cap_x, cap_y, params):
-    """左手瓶盖 TCP：与右手对称，必须加 moveit 左手 TCP 标定，否则 left_tcp_extra 几乎无效。"""
+    """左手瓶盖 IK 位置 = geom + moveit_tcp + extra；yaw 参考可选不含 extra。"""
     off_x, off_y = mag.tcp_offsets_for_arm(True)
-    return (
-        cap_x + off_x + params["left_tcp_extra_x_m"],
-        cap_y + off_y + params["left_tcp_extra_y_m"],
-    )
+    ex = float(params["left_tcp_extra_x_m"])
+    ey = float(params["left_tcp_extra_y_m"])
+    pos_x = cap_x + off_x + ex
+    pos_y = cap_y + off_y + ey
+    yaw_x = cap_x + off_x
+    yaw_y = cap_y + off_y
+    return pos_x, pos_y, yaw_x, yaw_y
+
+
+def _left_cap_yaw_xy(pos_x, pos_y, params):
+    """IK 位置与朝向解耦：extra 只平移落点，不通过 atan2 牵动臂展 yaw。"""
+    if not params.get("left_cap_yaw_decouple_extra", True):
+        return pos_x, pos_y
+    yaw_x = _ACTIVE_LEFT_CAP_XY.get("yaw_x")
+    yaw_y = _ACTIVE_LEFT_CAP_XY.get("yaw_y")
+    if yaw_x is None or yaw_y is None:
+        return pos_x, pos_y
+    return float(yaw_x), float(yaw_y)
 
 
 def _quat_rotate_vec(q, v):
@@ -417,6 +563,48 @@ def _quat_rotate_vec(q, v):
     qv = np.array([q.x, q.y, q.z], dtype=float)
     t = 2.0 * np.cross(qv, v)
     return v + q.w * t + np.cross(qv, t)
+
+
+def _calibrate_ee_offset(cap_x, cap_y, params):
+    """从 base_link extra 自动反算 EE 系夹爪偏移（一次性标定）。
+    返回 (dx, dy, dz) 在 l7 系下的偏移，或 None。
+    """
+    extra = np.array([
+        float(params.get("left_tcp_extra_x_m", 0.0)),
+        float(params.get("left_tcp_extra_y_m", 0.0)),
+        float(params.get("left_tcp_extra_z_m", 0.0)),
+    ])
+    if np.all(np.abs(extra) < 1e-5):
+        return None
+
+    # 获取 IK 目标四元数（与 _left_cap_pose 一致）
+    kw = _left_cap_orientation_kwargs()
+    pitch = _locked_approach_pitch(params)
+    yaw_x, yaw_y = _left_cap_yaw_xy(cap_x, cap_y, params)
+    quat = get_topdown_left_quat(yaw_x, yaw_y, approach_pitch_override=pitch, **kw)
+
+    # 叠加 l5/l6 关节偏置（触顶后的实际夹爪姿态比 IK 目标多这两项旋转）
+    w5 = float(params.get("left_cap_wrist5_bias_rad", 0.0))
+    w6 = float(params.get("left_cap_wrist6_bias_rad", 0.0))
+    if abs(w5) > 1e-6:
+        q5 = mag.Quaternion()
+        q5.w, q5.z = math.cos(w5 * 0.5), math.sin(w5 * 0.5)
+        quat = _quat_mul(quat, q5)  # 绕局部 Z
+    if abs(w6) > 1e-6:
+        q6 = mag.Quaternion()
+        q6.w, q6.y = math.cos(w6 * 0.5), math.sin(w6 * 0.5)
+        quat = _quat_mul(quat, q6)  # 绕局部 Y
+
+    # 共轭四元数 = 逆旋转
+    q_conj = mag.Quaternion()
+    q_conj.w = quat.w
+    q_conj.x = -quat.x
+    q_conj.y = -quat.y
+    q_conj.z = -quat.z
+
+    # delta_base = R(q) * delta_ee → delta_ee = R(q*) * delta_base
+    delta_ee = _quat_rotate_vec(q_conj, extra)
+    return delta_ee
 
 
 def _claw_tip_offset_ee(params, tip_phase="preclose"):
@@ -456,13 +644,29 @@ def _fingertip_target_to_ee_xyz(finger_x, finger_y, finger_z, quat, params, tip_
     else:
         claw_pos = float(params.get("left_contact_preclose_pos", 35.0))
     v = _claw_tip_offset_ee_for_claw_pos(params, claw_pos)
-    delta = _quat_rotate_vec(quat, v)
+
+    # 🔧 修正：把 l5/l6 调平偏置乘进四元数，得到实际夹爪朝向
+    #     quat 是 IK 目标姿态（不含偏置），实际夹爪多转了 l5_bias + l6_bias
+    q_corrected = mag.Quaternion()
+    q_corrected.w, q_corrected.x = quat.w, quat.x
+    q_corrected.y, q_corrected.z = quat.y, quat.z
+    w5 = float(params.get("left_cap_wrist5_bias_rad", 0.0))
+    w6 = float(params.get("left_cap_wrist6_bias_rad", 0.0))
+    if abs(w5) > 1e-6:
+        q5 = mag.Quaternion()
+        q5.w, q5.z = math.cos(w5 * 0.5), math.sin(w5 * 0.5)
+        q_corrected = _quat_mul(q_corrected, q5)
+    if abs(w6) > 1e-6:
+        q6 = mag.Quaternion()
+        q6.w, q6.y = math.cos(w6 * 0.5), math.sin(w6 * 0.5)
+        q_corrected = _quat_mul(q_corrected, q6)
+
+    delta = _quat_rotate_vec(q_corrected, v)
     return (
         float(finger_x) - float(delta[0]),
         float(finger_y) - float(delta[1]),
         float(finger_z) - float(delta[2]),
     )
-
 
 def _log_key_params(params):
     """启动时打印关键参数，确认命令行覆盖是否生效。"""
@@ -470,7 +674,7 @@ def _log_key_params(params):
     rx, ry = mag.tcp_offsets_for_arm(False)
     rospy.loginfo(
         "📋 关键参数: right_extra=(%.3f,%.3f) | cap_mode=%s | cap_z_lift_scale=%.2f | "
-        "left_extra=(%.3f,%.3f,%.3f) | cap_claw=水平(CLAW_ROLL_L) approach_pitch=%.3f | "
+        "left_extra=(%.3f,%.3f,%.3f) | cap_claw=水平(CLAW_ROLL_L) approach_pitch=%.3f yaw_offset=%.1fdeg | "
         "level: base_roll=%.3f roll_extra=%.3f l5=%.3f l6=%.3f | "
         "left_move: ready=%.1f direct=%.1f hover=%.1f step=%.2f pre_lift=%s+%.2fm | "
         "arm_post_sleep=%.2fs hold_hz=%.0f | moveit_TCP_L=(%.3f,%.3f) R=(%.3f,%.3f)",
@@ -480,6 +684,7 @@ def _log_key_params(params):
         params["left_tcp_extra_x_m"], params["left_tcp_extra_y_m"],
         params["left_tcp_extra_z_m"],
         params["left_cap_approach_pitch_rad"],
+        math.degrees(float(params.get("left_cap_yaw_offset_rad", 0.0))),
         params["left_cap_base_roll_extra_rad"], params["left_cap_roll_extra_rad"],
         params["left_cap_wrist5_bias_rad"], params["left_cap_wrist6_bias_rad"],
         params["left_ready_move_sec"], params["left_ik_probe_move_sec"],
@@ -628,8 +833,17 @@ def compute_cap_target(vision_x, vision_y, bottle_z, params, grasp_x=None, grasp
         cap_x, cap_y = cap_vx, cap_vy
         rospy.loginfo("🎯 瓶盖 XY: vision(%.3f,%.3f) mode=vision", cap_x, cap_y)
 
-    cap_x, cap_y = left_cap_locked_xy(cap_x, cap_y, params)
+    global _ACTIVE_LEFT_CAP_XY
+    cap_geom_x, cap_geom_y = cap_x, cap_y
+    cap_x, cap_y, yaw_x, yaw_y = left_cap_locked_xy(cap_geom_x, cap_geom_y, params)
+    _ACTIVE_LEFT_CAP_XY = {"yaw_x": yaw_x, "yaw_y": yaw_y}
     off_x, off_y = mag.tcp_offsets_for_arm(True)
+    rospy.loginfo(
+        "🎯 瓶盖 X 链: geom_x=%.3f + tcp_x=%.3f + extra_x=%.3f → IK_x=%.3f"
+        " (yaw_ref_x=%.3f decouple=%s)",
+        cap_geom_x, off_x, float(params["left_tcp_extra_x_m"]), cap_x,
+        yaw_x, params.get("left_cap_yaw_decouple_extra", True),
+    )
     rospy.loginfo(
         "🎯 瓶盖落点(+左手TCP %.3f,%.3f +extra): (%.3f, %.3f, %.3f)",
         off_x, off_y, cap_x, cap_y, cap_z,
@@ -656,6 +870,23 @@ def _quick_re_vision(params):
     rx, ry = float(np.median(x_hist)), float(np.median(y_hist))
     rospy.loginfo("👁️ 重采视觉中值: (%.3f, %.3f) 来自 %d 帧", rx, ry, len(x_hist))
     return rx, ry
+
+
+def _collect_hsv_cap_target(params, timeout_sec=3.0):
+    """
+    从 /vla/cap_target 采集 HSV 蓝色瓶盖检测坐标（上位机 Orin 发布）。
+    返回 (cap_x, cap_y, cap_z) 或 (None, None, None)。
+    """
+    if not params.get("use_hsv_cap", True):
+        return None, None, None
+    rospy.loginfo("🔵 等待 HSV 瓶盖检测 /vla/cap_target (超时 %.1fs)...", timeout_sec)
+    try:
+        msg = rospy.wait_for_message("/vla/cap_target", PointStamped, timeout=timeout_sec)
+        rospy.loginfo("🔵 HSV 瓶盖坐标: X=%.3f Y=%.3f Z=%.3f", msg.point.x, msg.point.y, msg.point.z)
+        return float(msg.point.x), float(msg.point.y), float(msg.point.z)
+    except Exception:
+        rospy.logwarn("⚠️ 未收到 /vla/cap_target，回退几何推算")
+        return None, None, None
 
 
 def _read_left_claw_effort():
@@ -709,6 +940,7 @@ def refine_cap_xy_search(arm_pub, ik_client, cap_x, cap_y, hover_z, quat, seed_1
             q_try = solve_left_ik_holding_right(
                 ik_client, pose_h, q_curr, q_right_hold,
                 f"[左手] XY精搜 {idx}/{total}",
+                contact_phase=True,  # 加 l5/l6 偏置，让夹爪水平
             )
             if q_try is None:
                 continue
@@ -717,6 +949,7 @@ def refine_cap_xy_search(arm_pub, ik_client, cap_x, cap_y, hover_z, quat, seed_1
             pose_p = _left_cap_pose(cx, cy, hover_z - probe_drop)
             q_probe = solve_left_ik_holding_right(
                 ik_client, pose_p, q_curr, q_right_hold, "", quiet=True,
+                contact_phase=True,
             )
             if q_probe is not None:
                 execute_hold_right(arm_pub, q_probe, 0.2, q_right_hold, "")
@@ -740,6 +973,7 @@ def refine_cap_xy_search(arm_pub, ik_client, cap_x, cap_y, hover_z, quat, seed_1
     pose_best = _left_cap_pose(best_x, best_y, hover_z)
     q_best = solve_left_ik_holding_right(
         ik_client, pose_best, q_curr, q_right_hold, "[左手] XY精搜落点",
+        contact_phase=True,
     )
     if q_best is not None:
         execute_hold_right(arm_pub, q_best, 0.5, q_right_hold, "左手移至精搜最佳点")
@@ -759,10 +993,15 @@ def _emergency_safe_return(reason=""):
         return
     rospy.logwarn("🛑 紧急收手: %s", reason)
     try:
+        q_live = getattr(mag, "current_joints_rad", None)
+        if q_live is None or len(q_live) < 14:
+            q_live = mag.last_commanded_joints_rad
+        q_live = np.copy(q_live)
+        rospy.loginfo("🛑 使用Ctrl+C瞬间实际关节姿态作为安全收手起点")
         safe_abort(
             ctx["arm_pub"],
             q_right_hold=ctx.get("q_right_hold"),
-            q_left_last=_joints_or_last(ctx.get("q_left")),
+            q_left_last=q_live,
         )
     except Exception as exc:
         rospy.logerr("🛑 紧急收手失败: %s — 请手动急停或另开终端 execute_dual_arm_init_home", exc)
@@ -782,6 +1021,33 @@ def execute_hold_right(arm_pub, q_14_rad, time_sec, q_right_hold, step_name=""):
 def execute_hold_left(arm_pub, q_14_rad, time_sec, q_left_hold, step_name=""):
     """下发 14 轴轨迹，左手强制保持在 q_left_hold（右手动时用）。"""
     _execute_hold_frozen(arm_pub, q_14_rad, time_sec, q_left_hold, freeze_right=False, step_name=step_name)
+
+
+def _execute_hold_right_waypoints(arm_pub, waypoints, point_dt, q_right_hold, step_name=""):
+    """一次发布整段密集关节路点，让底层连续插值，避免逐点启停。"""
+    if not waypoints:
+        return None
+    times = []
+    values = []
+    for i, waypoint in enumerate(waypoints):
+        q = np.copy(waypoint)
+        q[RIGHT_SLICE] = q_right_hold[RIGHT_SLICE]
+        times.append(float(i + 1) * float(point_dt))
+        values.extend(mag._clamp_elbow_deg([math.degrees(v) for v in q]))
+    total_sec = times[-1]
+    if step_name:
+        rospy.loginfo("▶️ %s（%d路点连续轨迹，%.2fs）", step_name, len(waypoints), total_sec)
+    arm_pub.publish(armTargetPoses(times=times, values=values))
+    q_last = np.copy(waypoints[-1])
+    q_last[RIGHT_SLICE] = q_right_hold[RIGHT_SLICE]
+    mag.last_commanded_joints_rad = q_last
+    if _EMERGENCY_CTX.get("armed"):
+        _EMERGENCY_CTX["q_left"] = np.copy(q_last)
+    rospy.sleep(total_sec)
+    post_sleep = float((_ACTIVE_ARM_PARAMS or {}).get("arm_trajectory_post_sleep_sec", 0.12))
+    hold_hz = float((_ACTIVE_ARM_PARAMS or {}).get("arm_hold_republish_hz", 20.0))
+    _republish_arm_hold(arm_pub, q_last, post_sleep, hold_hz)
+    return q_last
 
 
 def _republish_arm_hold(arm_pub, q_14_rad, duration_sec, hz):
@@ -807,6 +1073,8 @@ def _execute_hold_frozen(arm_pub, q_14_rad, time_sec, q_frozen_ref, freeze_right
     target_deg = mag._clamp_elbow_deg([math.degrees(r) for r in q])
     arm_pub.publish(armTargetPoses(times=[time_sec], values=target_deg))
     mag.last_commanded_joints_rad = np.copy(q)
+    if _EMERGENCY_CTX.get("armed"):
+        _EMERGENCY_CTX["q_left"] = np.copy(q)
     post_sleep = 0.12
     hold_hz = 20.0
     if _ACTIVE_ARM_PARAMS is not None:
@@ -815,6 +1083,62 @@ def _execute_hold_frozen(arm_pub, q_14_rad, time_sec, q_frozen_ref, freeze_right
     rospy.sleep(time_sec)
     _republish_arm_hold(arm_pub, q, post_sleep, hold_hz)
 
+
+
+def _solve_left_ik_nearest(ik_client, pose_stamped, seed_14, q_ref, q_right_hold,
+                           ee_link="zarm_l7_end_effector"):
+    """固定TCP轨迹专用：指定末端链路，并选择最接近上一关节姿态的解。"""
+    group_name, _ = mag._ik_group_profile(True)
+    seeds = [np.copy(q_ref), np.copy(seed_14)]
+    # 7自由度在腕部奇异位形附近可能跳分支；小扰动种子用于寻找连续分支。
+    for idx in (LEFT_L5_LEVEL_IDX, LEFT_L6_LEVEL_IDX, LEFT_L7_TWIST_IDX):
+        for delta_deg in (-2.0, -0.5, 0.5, 2.0):
+            candidate = np.copy(q_ref)
+            candidate[idx] += math.radians(delta_deg)
+            seeds.append(candidate)
+
+    best = None
+    best_jump = float("inf")
+    best_rms = float("inf")
+    for seed in seeds:
+        seed[RIGHT_SLICE] = q_right_hold[RIGHT_SLICE]
+        req = GetPositionIKRequest()
+        req.ik_request.group_name = group_name
+        req.ik_request.ik_link_name = ee_link
+        ps = PoseStamped()
+        ps.header.frame_id = pose_stamped.header.frame_id
+        ps.header.stamp = rospy.Time(0)
+        ps.pose = pose_stamped.pose
+        req.ik_request.pose_stamped = ps
+        req.ik_request.robot_state = mag._build_robot_state_seed(seed)
+        req.ik_request.avoid_collisions = False
+        req.ik_request.timeout = rospy.Duration(0.25)
+        try:
+            resp = ik_client(req)
+        except rospy.ServiceException:
+            continue
+        if resp.error_code.val != MoveItErrorCodes.SUCCESS:
+            continue
+        merged = np.copy(q_ref)
+        for j, name in enumerate(resp.solution.joint_state.name):
+            if name in mag.joint_names_14:
+                merged[mag.joint_names_14.index(name)] = resp.solution.joint_state.position[j]
+        merged[RIGHT_SLICE] = q_right_hold[RIGHT_SLICE]
+        delta = np.abs(merged[LEFT_SLICE] - q_ref[LEFT_SLICE])
+        jump = float(np.max(delta))
+        rms = float(np.sqrt(np.mean(delta * delta)))
+        if (jump, rms) < (best_jump, best_rms):
+            best = merged
+            best_jump = jump
+            best_rms = rms
+        if jump <= math.radians(2.0):
+            break
+    if best is not None:
+        rospy.loginfo(
+            "🧭 连续IK候选最小跳变: max=%.2f° rms=%.2f°",
+            math.degrees(best_jump), math.degrees(best_rms),
+        )
+    return best
 
 
 def solve_left_ik_holding_right(ik_client, pose_stamped, seed_14, q_right_hold, step_name,
@@ -863,6 +1187,47 @@ def solve_left_ik_holding_right(ik_client, pose_stamped, seed_14, q_right_hold, 
                     merged[mag.joint_names_14.index(name)] = resp.solution.joint_state.position[j]
             merged[RIGHT_SLICE] = q_right_hold[RIGHT_SLICE]
             merged = _apply_left_wrist_level_bias(merged, contact_phase=contact_phase)
+
+            # FK 指尖补偿只用于旧 end_effector TCP；URDF 虚拟指尖时不能再二次补偿。
+            if (
+                _ACTIVE_LEFT_CAP_PARAMS is not None
+                and _ACTIVE_LEFT_CAP_PARAMS.get("left_claw_tip_enable", False)
+                and link != "left_gripper_tip"
+            ):
+                fk_adj = _fk_adjust_ik_target(
+                    pose_stamped.pose.position.x,
+                    pose_stamped.pose.position.y,
+                    pose_stamped.pose.position.z,
+                    merged, _ACTIVE_LEFT_CAP_PARAMS,
+                )
+                adj_x, adj_y, adj_z, err_x, err_y, err_z = fk_adj
+                if abs(err_x) > 0.001 or abs(err_y) > 0.001 or abs(err_z) > 0.001:
+                    # FK 检测到偏差，用修正后目标重新解 IK
+                    ps_adj = PoseStamped()
+                    ps_adj.header.frame_id = pose_stamped.header.frame_id
+                    ps_adj.header.stamp = rospy.Time(0)
+                    ps_adj.pose = pose_stamped.pose
+                    ps_adj.pose.position.x = adj_x
+                    ps_adj.pose.position.y = adj_y
+                    ps_adj.pose.position.z = adj_z
+                    req_adj = GetPositionIKRequest()
+                    req_adj.ik_request = req.ik_request
+                    req_adj.ik_request.pose_stamped = ps_adj
+                    try:
+                        resp_adj = ik_client(req_adj)
+                        if resp_adj.error_code.val == MoveItErrorCodes.SUCCESS:
+                            merged_adj = np.copy(seed)
+                            for j, name in enumerate(resp_adj.solution.joint_state.name):
+                                if name in mag.joint_names_14:
+                                    merged_adj[mag.joint_names_14.index(name)] = resp_adj.solution.joint_state.position[j]
+                            merged_adj[RIGHT_SLICE] = q_right_hold[RIGHT_SLICE]
+                            merged_adj = _apply_left_wrist_level_bias(merged_adj, contact_phase=contact_phase)
+                            if step_name and not quiet:
+                                rospy.loginfo("✅ %s IK+FK 成功 (%s)", step_name, link)
+                            return merged_adj
+                    except Exception:
+                        pass
+
             if step_name and not quiet:
                 rospy.loginfo("✅ %s IK 成功 (%s)", step_name, link)
             return merged
@@ -870,6 +1235,99 @@ def solve_left_ik_holding_right(ik_client, pose_stamped, seed_14, q_right_hold, 
     if step_name and not quiet:
         rospy.logerr("❌ %s IK 无解", step_name)
     return None
+
+
+# ── FK 正运动学指尖补偿 ──
+_FK_CLIENT = None
+
+def _get_fk_client():
+    global _FK_CLIENT
+    if _FK_CLIENT is None:
+        try:
+            _FK_CLIENT = rospy.ServiceProxy('/compute_fk', GetPositionFK)
+            _FK_CLIENT.wait_for_service(timeout=rospy.Duration(2.0))
+        except Exception:
+            rospy.logwarn("⚠️ /compute_fk 服务不可用，FK 指尖补偿跳过")
+            _FK_CLIENT = False
+    return _FK_CLIENT if _FK_CLIENT is not False else None
+
+
+def _fk_link_pose(q_14, link_name="left_gripper_tip"):
+    """返回指定链路在 base_link 下的 FK Pose；固定TCP拧盖必须有该反馈。"""
+    fk = _get_fk_client()
+    if fk is None:
+        return None
+    try:
+        req = GetPositionFKRequest()
+        req.header.frame_id = "base_link"
+        req.fk_link_names = [link_name]
+        req.robot_state.joint_state.name = list(mag.joint_names_14)
+        req.robot_state.joint_state.position = [float(v) for v in q_14]
+        resp = fk(req)
+        if resp.error_code.val != MoveItErrorCodes.SUCCESS or not resp.pose_stamped:
+            return None
+        return resp.pose_stamped[0].pose
+    except Exception as exc:
+        rospy.logwarn("⚠️ %s FK 失败: %s", link_name, exc)
+        return None
+
+
+def _fk_adjust_ik_target(finger_x, finger_y, finger_z, q_14, params):
+    """
+    用 MoveIt FK 计算夹爪指尖真实位置，返回修正后的 IK 目标 (x, y, z)。
+    q_14: 14轴关节角 (rad)，用于 FK 输入。
+    返回 (adjusted_x, adjusted_y, adjusted_z, delta_x, delta_y, delta_z)。
+    """
+    fk = _get_fk_client()
+    if fk is None:
+        return finger_x, finger_y, finger_z, 0.0, 0.0, 0.0
+
+    dx = float(params.get("gripper_tip_dx_m", 0.0))
+    dy = float(params.get("gripper_tip_dy_m", 0.0))
+    dz = float(params.get("gripper_tip_dz_m", 0.0))
+    if abs(dx) < 1e-5 and abs(dy) < 1e-5 and abs(dz) < 1e-5:
+        return finger_x, finger_y, finger_z, 0.0, 0.0, 0.0
+
+    try:
+        req = GetPositionFKRequest()
+        req.header.frame_id = "base_link"
+        req.fk_link_names = ["zarm_l7_end_effector"]
+        req.robot_state.joint_state.name = list(mag.joint_names_14)
+        req.robot_state.joint_state.position = [float(v) for v in q_14]
+        resp = fk(req)
+        if resp.error_code.val != MoveItErrorCodes.SUCCESS:
+            rospy.logwarn("⚠️ FK 求解失败 (error=%d), 跳过指尖补偿", resp.error_code.val)
+            return finger_x, finger_y, finger_z, 0.0, 0.0, 0.0
+        if len(resp.pose_stamped) < 1:
+            return finger_x, finger_y, finger_z, 0.0, 0.0, 0.0
+
+        ps = resp.pose_stamped[0]
+        l7_pos = np.array([ps.pose.position.x, ps.pose.position.y, ps.pose.position.z])
+        q_l7 = ps.pose.orientation
+
+        # FK 给出的 l7 姿态 + CLAW_ROLL 已在 IK 目标四元数中
+        # 夹爪指尖 = l7_pos + R_l7 @ [dx, dy, dz]
+        tip_offset = np.array([dx, dy, dz])
+        delta = _quat_rotate_vec(q_l7, tip_offset)
+        tip_pos = l7_pos + delta
+
+        # 修正：指尖应该到 (finger_x, finger_y, finger_z)
+        error = np.array([finger_x, finger_y, finger_z]) - tip_pos
+        adjusted = np.array([finger_x, finger_y, finger_z]) + error
+
+        rospy.loginfo(
+            "🔧 FK指尖补偿: l7=(%.3f,%.3f,%.3f) tip=(%.3f,%.3f,%.3f) "
+            "error=(%.3f,%.3f,%.3f) → IK目标调整=(%.3f,%.3f,%.3f)",
+            l7_pos[0], l7_pos[1], l7_pos[2],
+            tip_pos[0], tip_pos[1], tip_pos[2],
+            error[0], error[1], error[2],
+            adjusted[0], adjusted[1], adjusted[2],
+        )
+        return float(adjusted[0]), float(adjusted[1]), float(adjusted[2]), float(error[0]), float(error[1]), float(error[2])
+
+    except Exception as exc:
+        rospy.logwarn("⚠️ FK 服务调用失败: %s", exc)
+        return finger_x, finger_y, finger_z, 0.0, 0.0, 0.0
 
 
 def _right_claw_hold_cmd():
@@ -896,11 +1354,93 @@ def build_left_claw_cmd_hold_right(left_pos, left_effort):
     )
 
 
+def _left_claw_fb_metrics(claw):
+    st = claw.last_state
+    if st is None or len(st.data.position) < 1:
+        return None, None
+    return float(st.data.position[0]), float(st.data.effort[0])
+
+
+def _call_left_claw_close_step(claw, pos_cmd, effort, tag, params):
+    """
+    发左爪闭合指令并等到 Reached(2) 再返回。
+    驱动在 Moving 中拒收新指令（日志 service failed: b''），必须逐步等到位。
+    """
+    settle_sec = max(float(params.get("left_cap_close_settle_sec", 2.5)), 0.5)
+    retries = max(int(params.get("left_cap_close_retries", 4)), 1)
+    wait_sec = float(params.get("left_cap_close_wait_sec", 0.25))
+    ramp_sleep = max(float(params.get("left_cap_close_ramp_sleep_sec", 0.0)), 0.0)
+
+    for attempt in range(retries):
+        pos, vel, eff = build_left_claw_cmd_hold_right(pos_cmd, effort)
+        attempt_tag = tag if attempt == 0 else "%s-r%d" % (tag, attempt + 1)
+        ok = claw.call(
+            pos, vel, eff, tag=attempt_tag,
+            wait_sec=wait_sec, abort_on_stall=False,
+        )
+        if not ok:
+            rospy.logwarn(
+                "⚠️ 左爪 %s 服务失败 %d/%d（可能仍在 Moving），等待后重试",
+                attempt_tag, attempt + 1, retries,
+            )
+            claw.wait_side_settled("left", timeout=0.8, require_saw_moving=False)
+            time.sleep(0.35)
+            continue
+        if claw.wait_side_settled("left", timeout=settle_sec, require_saw_moving=True):
+            time.sleep(ramp_sleep)
+            return True
+        fb_pos, _ = _left_claw_fb_metrics(claw)
+        st = claw.last_state
+        if st is not None and len(st.state) >= 1 and int(st.state[0]) == 2:
+            time.sleep(ramp_sleep)
+            return True
+        rospy.logwarn(
+            "⚠️ 左爪 %s 未在 %.1fs 内 Reached (fb pos=%s)，重试",
+            attempt_tag, settle_sec, "?" if fb_pos is None else "%.1f" % fb_pos,
+        )
+        time.sleep(0.25)
+    return False
+
+
+def _recover_left_claw_close(claw, target, effort, params, tag_prefix):
+    """渐进结束后若反馈远低于目标，补发直达闭合。"""
+    fb_pos, _ = _left_claw_fb_metrics(claw)
+    if fb_pos is None or fb_pos >= target - 4.0:
+        return True
+    rospy.logwarn(
+        "⚠️ 左爪仅到 %.1f，补压至 %.0f (差 %.0f)",
+        fb_pos, target, target - fb_pos,
+    )
+    return _call_left_claw_close_step(
+        claw, target, effort, "%s-recover" % tag_prefix, params,
+    )
+
+
+def _left_cap_final_squeeze(claw, target, effort, params, tag_prefix="close-left-cap"):
+    """渐进闭合后终生成目标 pos/effort 再压紧一段时间。"""
+    if not bool(params.get("left_cap_final_squeeze_enable", True)):
+        return True
+    hold_sec = max(float(params.get("left_cap_final_squeeze_sec", 0.7)), 0.0)
+    passes = max(int(params.get("left_cap_final_squeeze_passes", 1)), 1)
+    if hold_sec <= 1e-6:
+        return True
+    ok = True
+    for i in range(passes):
+        tag = "%s-squeeze" % tag_prefix if passes == 1 else "%s-squeeze-%d" % (tag_prefix, i + 1)
+        ok = _call_left_claw_close_step(claw, target, effort, tag, params) and ok
+        rospy.loginfo(
+            "🔧 左爪终压 %d/%d: pos=%.0f effort=%.2f 保持 %.1fs",
+            i + 1, passes, target, effort, hold_sec,
+        )
+        time.sleep(hold_sec)
+    return ok
+
+
 def close_left_cap_gradual(params, tag_prefix="close-left-cap"):
     """
     左爪渐进夹紧瓶盖：从 preclose 分步增至 left_cap_close_pos。
     参考 20.gripper_issue.md 力位混合：触到盖（effort 升高）或达目标即停。
-    claw_safe 会将 pos 限在 max_close_pos(85)、effort 限在 0.6A。
+    claw_safe 会将 pos 限在 max_close_pos、effort 限在 max_close_effort（见 apply_claw_safe_limits）。
     """
     claw = get_controller()
     target = float(params["left_cap_close_pos"])
@@ -908,11 +1448,12 @@ def close_left_cap_gradual(params, tag_prefix="close-left-cap"):
     step = max(float(params.get("left_cap_close_ramp_step", 5.0)), 1.0)
     effort = float(params["left_cap_effort"])
     stop_eff = float(params.get("left_cap_close_effort_stop", 0.32))
+    min_pos = float(params.get("left_cap_close_min_pos", 0.0))
     ramp = bool(params.get("left_cap_close_ramp_enable", True))
 
     if not ramp:
-        pos, vel, eff = build_left_claw_cmd_hold_right(target, effort)
-        ok = claw.call(pos, vel, eff, tag=tag_prefix)
+        ok = _call_left_claw_close_step(claw, target, effort, tag_prefix, params)
+        ok = _left_cap_final_squeeze(claw, target, effort, params, tag_prefix) and ok
         _log_left_claw_close_result(claw, target, effort, ok)
         return ok
 
@@ -920,30 +1461,32 @@ def close_left_cap_gradual(params, tag_prefix="close-left-cap"):
     last_ok = True
     while pos_cmd <= target + 1e-6:
         pos_cmd = min(pos_cmd, target)
-        pos, vel, eff = build_left_claw_cmd_hold_right(pos_cmd, effort)
         tag = "%s-%.0f" % (tag_prefix, pos_cmd)
-        last_ok = claw.call(pos, vel, eff, tag=tag)
-        time.sleep(0.4)
-        st = claw.last_state
-        if st is not None and len(st.data.effort) >= 1:
-            fb_pos = float(st.data.position[0])
-            fb_eff = float(st.data.effort[0])
+        last_ok = _call_left_claw_close_step(claw, pos_cmd, effort, tag, params) and last_ok
+        fb_pos, fb_eff = _left_claw_fb_metrics(claw)
+        if fb_pos is not None:
             rospy.loginfo(
                 "🖐️ 左爪渐进闭合 %.0f → fb pos=%.1f effort=%.2f",
-                pos_cmd, fb_pos, fb_eff,
+                pos_cmd, fb_pos, fb_eff if fb_eff is not None else 0.0,
             )
-            if fb_eff >= stop_eff and pos_cmd >= start + step:
+            if (
+                fb_eff is not None
+                and fb_eff >= stop_eff
+                and pos_cmd >= start + step
+                and fb_pos >= min_pos - 1e-6
+            ):
                 rospy.loginfo(
-                    "✅ 左爪触阻停止 @ pos=%.1f effort=%.2f (阈值 %.2f)",
-                    fb_pos, fb_eff, stop_eff,
+                    "✅ 左爪触阻停止 @ pos=%.1f effort=%.2f (阈值 %.2f, min_pos=%.0f)",
+                    fb_pos, fb_eff, stop_eff, min_pos,
                 )
-                return last_ok
+                break
             if abs(fb_pos - pos_cmd) <= 3.0 and pos_cmd >= target - 1e-6:
                 break
         if pos_cmd >= target - 1e-6:
             break
         pos_cmd += step
 
+    last_ok = _left_cap_final_squeeze(claw, target, effort, params, tag_prefix) and last_ok
     _log_left_claw_close_result(claw, target, effort, last_ok)
     return last_ok
 
@@ -955,13 +1498,7 @@ def _log_left_claw_close_result(claw, target_pos, target_eff, ok):
         return
     fb_pos = float(st.data.position[0])
     fb_eff = float(st.data.effort[0])
-    if fb_pos < target_pos - 8.0:
-        rospy.logwarn(
-            "⚠️ 左爪闭合不足: 命令≈%.0f effort=%.2f → 反馈 pos=%.1f "
-            "(可增 _left_cap_close_pos / _left_cap_effort，上限 85/0.6)",
-            target_pos, target_eff, fb_pos,
-        )
-    elif ok:
+    if ok:
         rospy.loginfo(
             "✅ 左爪闭合完成: 目标≈%.0f → 反馈 pos=%.1f effort=%.2f",
             target_pos, fb_pos, fb_eff,
@@ -989,6 +1526,9 @@ def descend_until_contact(arm_pub, ik_client, cap_x, cap_y, cap_z, quat, seed_14
     stop_above = float(params["contact_z_stop_above_m"])
     z_soft = float(cap_z) + stop_above
     z_hard = float(cap_z) - float(params.get("contact_z_max_below_cap_m", 0.006))
+    # world_z 模式下 EE 比指尖高 world_z_m，硬下限须相应下调
+    if params.get("left_claw_tip_enable") and str(params.get("left_claw_tip_mode", "")).lower() == "world_z":
+        z_hard -= float(params.get("left_claw_tip_world_z_m", 0.0))
     mode = str(params.get("contact_mode", "effort_first")).lower()
     effort_first = mode != "geometry_only"
     extra_steps = int(params.get("contact_extra_descend_steps", 6)) if effort_first else 0
@@ -1000,6 +1540,7 @@ def descend_until_contact(arm_pub, ik_client, cap_x, cap_y, cap_z, quat, seed_14
     moved_steps = 0
     touched = False
     preclosed = False
+    z_last_move = z
 
     preclose = float(params["left_contact_preclose_pos"])
     if (
@@ -1059,6 +1600,7 @@ def descend_until_contact(arm_pub, ik_client, cap_x, cap_y, cap_z, quat, seed_14
             f"左手垂直下降 {i + 1}/{max_steps}",
         )
         q_curr = np.copy(mag.last_commanded_joints_rad)
+        z_last_move = z
         moved_steps += 1
         _lock_left_approach_pitch(_ACTIVE_LEFT_IK_CTX.get("approach_pitch"), z)
         hold_hz = 20.0
@@ -1078,13 +1620,17 @@ def descend_until_contact(arm_pub, ik_client, cap_x, cap_y, cap_z, quat, seed_14
 
     if moved_steps == 0:
         rospy.logerr("❌ 触顶搜索未执行任何下降步（IK 全失败），中止左爪闭合")
-        return q_curr, False
+        return q_curr, False, float(hover_z)
 
     if not skip_wrist_level:
         w5 = float(params.get("left_cap_wrist5_bias_rad", 0.0))
         w6 = float(params.get("left_cap_wrist6_bias_rad", 0.0))
         if abs(w5) > 1e-9 or abs(w6) > 1e-9:
             q_curr = _apply_left_claw_level_bias(q_curr, contact_phase=True)
+            rospy.loginfo(
+                "📐 触顶调平 l5=%.3f(%.1f°) l6=%.3f(%.1f°)",
+                w5, math.degrees(w5), w6, math.degrees(w6),
+            )
             execute_hold_right(
                 arm_pub, q_curr, 0.35, q_right_hold, "左手触顶调平(l5主/l6辅)",
             )
@@ -1100,9 +1646,9 @@ def descend_until_contact(arm_pub, ik_client, cap_x, cap_y, cap_z, quat, seed_14
     if not touched and not detect_left_contact(claw, threshold):
         rospy.logwarn(
             "⚠️ 未检测到触顶 effort，已在 z≈%.3f 继续（cap_z=%.3f 软参考=%.3f）",
-            z + step_m if moved_steps else hover_z, cap_z, z_soft,
+            z_last_move if moved_steps else hover_z, cap_z, z_soft,
         )
-    return q_curr, True
+    return q_curr, True, float(z_last_move if moved_steps else hover_z)
 
 
 def _quat_mul(a, b):
@@ -1130,17 +1676,66 @@ def _quat_world_z(angle_rad):
     return q
 
 
+def _quat_local_x(angle_rad):
+    q = mag.Quaternion()
+    q.w = math.cos(angle_rad * 0.5)
+    q.x = math.sin(angle_rad * 0.5)
+    return q
+
+
+def _quat_local_y(angle_rad):
+    q = mag.Quaternion()
+    q.w = math.cos(angle_rad * 0.5)
+    q.y = math.sin(angle_rad * 0.5)
+    return q
+
+
+def _quat_world_horizontal(angle_rad, axis_yaw_rad):
+    """绕世界 XY 平面内指定方向的轴旋转。"""
+    half = angle_rad * 0.5
+    q = mag.Quaternion()
+    q.w = math.cos(half)
+    q.x = math.sin(half) * math.cos(axis_yaw_rad)
+    q.y = math.sin(half) * math.sin(axis_yaw_rad)
+    return q
+
+
+def _left_level_axis_local(params):
+    if str(params.get("left_cap_twist_level_axis", "local_x")).lower() == "local_y":
+        return np.array([0.0, 1.0, 0.0], dtype=float)
+    return np.array([1.0, 0.0, 0.0], dtype=float)
+
+
+def _quat_left_level(angle_rad, params):
+    if str(params.get("left_cap_twist_level_axis", "local_x")).lower() == "local_y":
+        return _quat_local_y(angle_rad)
+    return _quat_local_x(angle_rad)
+
+
+def _contact_ref_quat(cap_x, cap_y, params):
+    """触顶/夹紧时的水平姿态（与接近阶段一致）。"""
+    kw = _left_cap_orientation_kwargs()
+    pitch = _locked_approach_pitch(params)
+    yaw_x, yaw_y = _left_cap_yaw_xy(cap_x, cap_y, params)
+    return get_topdown_left_quat(
+        yaw_x, yaw_y, approach_pitch_override=pitch, **kw,
+    )
+
+
 def _twist_ref_quat(cap_x, cap_y, params):
     """
-    拧盖参考姿态：水平夹爪 + 朝右（+X 侧），仅绕世界 z 拧盖时在此基础上累加转角。
+    拧盖参考姿态。默认 use_contact_yaw=True：与触顶一致，避免夹紧后再偏航导致 IK 无解。
     """
+    if bool(params.get("left_cap_twist_use_contact_yaw", True)):
+        return _contact_ref_quat(cap_x, cap_y, params)
     kw = _left_cap_orientation_kwargs()
     kw["yaw_extra"] = float(kw.get("yaw_extra", 0.0)) + float(
         params.get("left_cap_twist_face_right_yaw_rad", -1.57079633)
     )
     pitch = _locked_approach_pitch(params)
+    yaw_x, yaw_y = _left_cap_yaw_xy(cap_x, cap_y, params)
     return get_topdown_left_quat(
-        cap_x, cap_y, approach_pitch_override=pitch, **kw,
+        yaw_x, yaw_y, approach_pitch_override=pitch, **kw,
     )
 
 
@@ -1150,116 +1745,447 @@ def _cap_touch_z(cap_z, params):
 
 def _move_left_to_cap_pose(arm_pub, ik_client, x, y, z, quat, q_seed, q_right_hold,
                            ik_label, move_label, duration, apply_level_bias=True,
-                           tip_phase="close"):
+                           tip_phase="close", q_continuity_ref=None, validate_twist_fk=False,
+                           execute=True, twist_pivot_offset_ee=None):
     """固定 TCP 位姿 IK；(x,y,z) 为指尖落点，内部换算 EE 目标；可选 l5/l6 触顶偏置。"""
     params = _ACTIVE_LEFT_CAP_PARAMS or {}
-    ee_x, ee_y, ee_z = _fingertip_target_to_ee_xyz(x, y, z, quat, params, tip_phase=tip_phase)
+    if twist_pivot_offset_ee is not None:
+        pivot_delta = _quat_rotate_vec(quat, twist_pivot_offset_ee)
+        ee_x = float(x) - float(pivot_delta[0])
+        ee_y = float(y) - float(pivot_delta[1])
+        ee_z = float(z) - float(pivot_delta[2])
+    else:
+        ee_x, ee_y, ee_z = _fingertip_target_to_ee_xyz(
+            x, y, z, quat, params, tip_phase=tip_phase,
+        )
     pose = mag._build_pose_stamped(ee_x, ee_y, ee_z, quat)
-    q = solve_left_ik_holding_right(
-        ik_client, pose, q_seed, q_right_hold, ik_label,
-        contact_phase=False, quiet=True,
-    )
+    if q_continuity_ref is not None:
+        q = _solve_left_ik_nearest(
+            ik_client, pose, q_seed, q_continuity_ref, q_right_hold,
+            ee_link="zarm_l7_end_effector" if twist_pivot_offset_ee is not None else "left_gripper_tip",
+        )
+    else:
+        q = solve_left_ik_holding_right(
+            ik_client, pose, q_seed, q_right_hold, ik_label,
+            contact_phase=False, quiet=True,
+        )
     if q is None:
         rospy.logerr("❌ %s IK 无解", ik_label)
         return None
     if apply_level_bias:
         q = _apply_left_claw_level_bias(q, contact_phase=True)
-    execute_hold_right(arm_pub, q, duration, q_right_hold, move_label)
+    if q_continuity_ref is not None:
+        jump_deg = math.degrees(float(np.max(np.abs(q[LEFT_SLICE] - q_continuity_ref[LEFT_SLICE]))))
+        jump_limit = float(params.get("left_cap_twist_joint_jump_deg", 8.0))
+        if jump_deg > jump_limit:
+            rospy.logerr("❌ %s 关节解跳变 %.1f° > %.1f°，拒绝执行", ik_label, jump_deg, jump_limit)
+            return None
+    if validate_twist_fk:
+        fk_link = "zarm_l7_end_effector" if twist_pivot_offset_ee is not None else "left_gripper_tip"
+        fk_pose = _fk_link_pose(q, fk_link)
+        if fk_pose is None:
+            rospy.logerr("❌ %s 无法做 %s FK 校验，拒绝执行", ik_label, fk_link)
+            return None
+        actual_x = float(fk_pose.position.x)
+        actual_y = float(fk_pose.position.y)
+        actual_z = float(fk_pose.position.z)
+        if twist_pivot_offset_ee is not None:
+            actual_delta = _quat_rotate_vec(fk_pose.orientation, twist_pivot_offset_ee)
+            actual_x += float(actual_delta[0])
+            actual_y += float(actual_delta[1])
+            actual_z += float(actual_delta[2])
+        dx = actual_x - float(x)
+        dy = actual_y - float(y)
+        dz = actual_z - float(z)
+        xy_err = math.hypot(dx, dy)
+        xy_tol = float(params.get("left_cap_twist_fk_xy_tolerance_m", 0.0025))
+        z_tol = float(params.get("left_cap_twist_fk_z_tolerance_m", 0.0015))
+        if xy_err > xy_tol or abs(dz) > z_tol:
+            rospy.logerr(
+                "❌ %s FK漂移 xy=%.1fmm z=%.1fmm (限 %.1f/%.1fmm)，拒绝执行",
+                ik_label, xy_err * 1000.0, dz * 1000.0, xy_tol * 1000.0, z_tol * 1000.0,
+            )
+            return None
+    if execute:
+        execute_hold_right(arm_pub, q, duration, q_right_hold, move_label)
     return q
 
 
 def _twist_ik_to_angle(arm_pub, ik_client, cap_x, cap_y, touch_z, ref_quat, twist_rad,
-                       q_seed, q_right_hold, params, tag):
-    """同一 XYZ，姿态 = ref 绕世界 z 转 twist_rad；全关节 IK 自由补偿。"""
-    q_tgt = _quat_mul(_quat_world_z(twist_rad), ref_quat)
-    step_deg = max(float(params.get("left_cap_twist_step_deg", 15.0)), 1.0)
+                       q_seed, q_right_hold, params, tag, start_ang=0.0,
+                       apply_level_bias=False):
+    """预计算并校验固定TCP密集路点，再作为一整段连续轨迹发布。"""
+    requested_step_deg = max(float(params.get("left_cap_twist_step_deg", 15.0)), 0.25)
+    max_cart_step_deg = max(float(params.get("left_cap_twist_cartesian_max_step_deg", 1.0)), 0.25)
+    step_deg = min(requested_step_deg, max_cart_step_deg)
     n = max(1, int(math.ceil(abs(math.degrees(twist_rad)) / step_deg)))
-    dt = float(params.get("left_cap_twist_step_sec", 0.45))
+    actual_step_deg = abs(math.degrees(twist_rad)) / float(n)
+    deg_per_sec = max(float(params.get("left_cap_twist_cartesian_deg_per_sec", 6.0)), 0.5)
+    dt = max(actual_step_deg / deg_per_sec, 0.08)
     q = np.copy(q_seed)
+    q_cycle_start = np.copy(q_seed)
+    pivot_offset = np.asarray(
+        params.get("left_cap_twist_pivot_ee_m", [0.04, -0.03, 0.05]), dtype=float,
+    )
+    waypoints = []
+    done_rad = 0.0
+
     for i in range(1, n + 1):
         frac = float(i) / float(n)
-        ang = twist_rad * frac
+        step_rad = twist_rad * frac
+        ang = start_ang + step_rad
         q_ori = _quat_mul(_quat_world_z(ang), ref_quat)
+        pitch_comp_deg = abs(math.degrees(ang)) * float(
+            params.get("left_cap_twist_pitch_comp_deg_per_deg", 0.0)
+        )
+        pitch_comp_rad = math.radians(pitch_comp_deg)
+        if str(params.get("left_cap_twist_pitch_comp_frame", "world_horizontal")).lower() == "local_y":
+            q_ori = _quat_mul(q_ori, _quat_left_level(pitch_comp_rad, params))
+        else:
+            # 将实机前后俯仰轴投影到世界水平面，并在整段旋转中固定该补偿轴。
+            ref_axis_world = _quat_rotate_vec(ref_quat, _left_level_axis_local(params))
+            axis_yaw = math.atan2(float(ref_axis_world[1]), float(ref_axis_world[0]))
+            q_ori = _quat_mul(_quat_world_horizontal(pitch_comp_rad, axis_yaw), q_ori)
+        abs_ang_deg = abs(math.degrees(ang))
+        x_comp = abs_ang_deg * float(
+            params.get("left_cap_twist_x_comp_per_deg_m", 0.0)
+        )
+        y_comp = abs_ang_deg * float(
+            params.get("left_cap_twist_y_comp_per_deg_m", 0.0)
+        )
+        z_comp = abs_ang_deg * float(
+            params.get("left_cap_twist_z_comp_per_deg_m", 0.0)
+        )
+        waypoint_x = float(cap_x) + x_comp
+        waypoint_y = float(cap_y) + y_comp
+        waypoint_z = float(touch_z) + z_comp
+        ik_seed = np.copy(q)
+        if bool(params.get("left_cap_twist_seed_l7_enable", True)):
+            l7_min = math.radians(float(params.get("left_cap_twist_l7_seed_min_deg", -38.0)))
+            l7_max = math.radians(float(params.get("left_cap_twist_l7_seed_max_deg", 38.0)))
+            l7_des = q_cycle_start[LEFT_L7_TWIST_IDX] + step_rad
+            ik_seed[LEFT_L7_TWIST_IDX] = min(max(l7_des, l7_min), l7_max)
+            ik_seed[RIGHT_SLICE] = q_right_hold[RIGHT_SLICE]
         q_next = _move_left_to_cap_pose(
-            arm_pub, ik_client, cap_x, cap_y, touch_z, q_ori, q, q_right_hold,
-            "[%s] IK z=%.1f°" % (tag, math.degrees(ang)),
-            "%s %.0f%%" % (tag, frac * 100.0),
-            dt,
+            arm_pub, ik_client, waypoint_x, waypoint_y, waypoint_z, q_ori, ik_seed, q_right_hold,
+            "[%s] 固定点 IK z=%.1f° seed_l7=%.1f°" % (
+                tag, math.degrees(ang), math.degrees(ik_seed[LEFT_L7_TWIST_IDX])
+            ),
+            "", dt,
+            apply_level_bias=apply_level_bias,
+            q_continuity_ref=q,
+            validate_twist_fk=True,
+            execute=False,
+            twist_pivot_offset_ee=pivot_offset,
         )
         if q_next is None:
-            return None
+            break
+        q = q_next
+        waypoints.append(np.copy(q))
+        done_rad = step_rad
+
+    if not waypoints:
+        return None, 0.0
+    if len(waypoints) < n:
+        rospy.logwarn(
+            "⚠️ %s 仅规划成功 %d/%d 路点，执行已校验的 %.1f°",
+            tag, len(waypoints), n, math.degrees(done_rad),
+        )
+    q_executed = _execute_hold_right_waypoints(
+        arm_pub, waypoints, dt, q_right_hold,
+        "%s 固定TCP水平旋转" % tag,
+    )
+    return q_executed, done_rad
+
+
+def _twist_in_place_direct_l7(arm_pub, q_start, q_right_hold, total_rad, params, tag,
+                              start_ang=0.0):
+    """固定当前整臂构型，只转 l7；避免 IK 在位置优先时用肩肘抵消 yaw。"""
+    step_deg = max(float(params.get("left_cap_twist_step_deg", 15.0)), 1.0)
+    n = max(1, int(math.ceil(abs(math.degrees(total_rad)) / step_deg)))
+    dt = float(params.get("left_cap_twist_step_sec", 0.45))
+    q = np.copy(q_start)
+    for i in range(1, n + 1):
+        frac = float(i) / float(n)
+        ang = start_ang + total_rad * frac
+        q_next = np.copy(q_start)
+        q_next[LEFT_L7_TWIST_IDX] = q_start[LEFT_L7_TWIST_IDX] + ang
+        q_next[RIGHT_SLICE] = q_right_hold[RIGHT_SLICE]
+        execute_hold_right(
+            arm_pub, q_next, dt, q_right_hold,
+            "%s l7 %.1f°" % (tag, math.degrees(ang)),
+        )
         q = q_next
     return q
 
 
-def _twist_cap_cycle_ik(arm_pub, ik_client, cap_x, cap_y, cap_z, q_start, q_right_hold, params):
+def _twist_cap_in_place_ik(arm_pub, ik_client, cap_x, cap_y, cap_z, q_start, q_right_hold, params,
+                           contact_z=None):
     """
-    循环拧盖：夹爪朝右 → 每周期绕 z 转 90°(IK 保持 XYZ+水平) → 松爪 → 回正朝右 → 再夹。
-    等价于 l7 驱动拧盖，但由全臂 IK 补偿，TCP 位置不漂、水平不变。
+    原地 IK 拧盖：固定 left_gripper_tip 的 XYZ，仅旋转姿态绕世界 Z。
+    不修改左爪抓取落点逻辑，也不复用 left_tcp_extra 作为轨道半径。
+    """
+    cycles = int(params.get("left_cap_twist_cycles", 4))
+    cycle_deg = float(params.get("left_cap_twist_cycle_deg", 90.0))
+    if cycles <= 0:
+        rospy.logwarn("⏭️ left_cap_twist_cycles=0：跳过 in_place_ik 拧盖")
+        return q_start, False
+
+    touch_z = float(contact_z) if contact_z is not None else _cap_touch_z(cap_z, params)
+    reclose = bool(params.get("left_cap_twist_reclose", False))
+    release_pos = float(params.get("left_cap_twist_release_pos", 12.0))
+    cycle_rad = math.radians(cycle_deg)
+    ref_quat = _twist_ref_quat(cap_x, cap_y, params)
+    rospy.loginfo(
+        "🔄 拧盖 in_place_ik（固定指尖XYZ）: %d×%.0f° | touch_z=%.3f | reclose=%s | direct_l7=%s seed_l7=%s",
+        cycles, cycle_deg, touch_z, reclose,
+        params.get("left_cap_twist_direct_l7_enable", True),
+        params.get("left_cap_twist_seed_l7_enable", True),
+    )
+
+    q = np.copy(q_start)
+    twisted_any = False
+    current_ang = 0.0
+    total_done = 0.0
+    target_total = abs(cycle_rad) * cycles
+    use_direct_l7 = bool(params.get("left_cap_twist_direct_l7_enable", True))
+    if not use_direct_l7:
+        anchor_pose = _fk_link_pose(q_start, "zarm_l7_end_effector")
+        if anchor_pose is None:
+            rospy.logerr("❌ 固定TCP拧盖需要 /compute_fk 的 zarm_l7_end_effector，停止拧盖")
+            return q_start, False
+        pivot_offset = np.asarray(
+            params.get("left_cap_twist_pivot_ee_m", [0.0, 0.0, -0.07]), dtype=float,
+        )
+        model_delta = _quat_rotate_vec(anchor_pose.orientation, pivot_offset)
+        model_x = float(anchor_pose.position.x) + float(model_delta[0])
+        model_y = float(anchor_pose.position.y) + float(model_delta[1])
+        model_z = float(anchor_pose.position.z) + float(model_delta[2])
+        configured_cap = (float(cap_x), float(cap_y), float(touch_z))
+        if bool(params.get("left_cap_twist_skip_align", True)):
+            # Preserve the already-grasped pivot instead of correcting perception/TCP mismatch
+            # in the first twist waypoint. Rotation geometry and dynamic compensation stay unchanged.
+            cap_x, cap_y, touch_z = model_x, model_y, model_z
+        ref_quat = anchor_pose.orientation
+        rospy.loginfo(
+            "🎯 旋转中心: 使用=(%.4f, %.4f, %.4f) 配置=(%.4f, %.4f, %.4f) | "
+            "EE→tip=[%.3f,%.3f,%.3f] | 对齐跳过=%s 配置中心误差=(%.1f,%.1f,%.1f)mm | "
+            "XYZ补偿=(%.2f,%.2f,%.2f)mm/deg | "
+            "pitch初值=%.2fdeg 斜率=%.3fdeg/deg frame=%s axis=%s",
+            cap_x, cap_y, touch_z,
+            configured_cap[0], configured_cap[1], configured_cap[2],
+            pivot_offset[0], pivot_offset[1], pivot_offset[2],
+            bool(params.get("left_cap_twist_skip_align", True)),
+            (model_x - configured_cap[0]) * 1000.0,
+            (model_y - configured_cap[1]) * 1000.0,
+            (model_z - configured_cap[2]) * 1000.0,
+            float(params.get("left_cap_twist_x_comp_per_deg_m", 0.0)) * 1000.0,
+            float(params.get("left_cap_twist_y_comp_per_deg_m", 0.0)) * 1000.0,
+            float(params.get("left_cap_twist_z_comp_per_deg_m", 0.0)) * 1000.0,
+            float(params.get("left_cap_twist_pitch_offset_deg", 0.0)),
+            float(params.get("left_cap_twist_pitch_comp_deg_per_deg", 0.0)),
+            str(params.get("left_cap_twist_pitch_comp_frame", "world_horizontal")),
+            str(params.get("left_cap_twist_level_axis", "local_x")),
+        )
+    max_attempts = cycles if use_direct_l7 else max(cycles, cycles * 4)
+    c = 0
+    while c < max_attempts and (use_direct_l7 or abs(total_done) < target_total - math.radians(0.5)):
+        c += 1
+        remain_rad = cycle_rad
+        if not use_direct_l7:
+            remain_abs = max(target_total - abs(total_done), 0.0)
+            remain_rad = math.copysign(min(abs(cycle_rad), remain_abs), cycle_rad)
+        rospy.loginfo(
+            "🔩 原地拧盖尝试 %d/%d → 固定XYZ +%.0f° (累计 %.1f°/%.1f°)",
+            c, max_attempts, math.degrees(remain_rad), math.degrees(abs(total_done)), math.degrees(target_total),
+        )
+        q_attempt_home = np.copy(q)
+        if use_direct_l7:
+            q_next = _twist_in_place_direct_l7(
+                arm_pub, q, q_right_hold, remain_rad, params,
+                tag="周期%d 原地旋转" % c,
+                start_ang=0.0,
+            )
+            done_rad = remain_rad
+        else:
+            q_next, done_rad = _twist_ik_to_angle(
+                arm_pub, ik_client, cap_x, cap_y, touch_z, ref_quat,
+                remain_rad, q, q_right_hold, params,
+                tag="周期%d 原地旋转" % c,
+                start_ang=current_ang,
+                apply_level_bias=False,
+            )
+        if q_next is None or abs(done_rad) < math.radians(0.5):
+            rospy.logwarn("⚠️ 尝试 %d 原地旋转 IK 失败且无有效进展，停止", c)
+            break
+        q = q_next
+        current_ang += done_rad
+        total_done += abs(done_rad)
+        twisted_any = True
+        partial_attempt = abs(done_rad) < abs(remain_rad) - math.radians(0.5)
+
+        if reclose and (use_direct_l7 and c < cycles or (not use_direct_l7 and abs(total_done) < target_total - math.radians(0.5))):
+            pos, vel, eff = build_left_claw_cmd_hold_right(
+                release_pos, params.get("left_contact_preclose_effort", 0.22),
+            )
+            get_controller().call(pos, vel, eff, tag="twist-inplace-release-%d" % c)
+            time.sleep(0.5)
+            if use_direct_l7:
+                q_return = np.copy(q_attempt_home)
+                q_return[RIGHT_SLICE] = q_right_hold[RIGHT_SLICE]
+                execute_hold_right(
+                    arm_pub, q_return,
+                    float(params.get("left_cap_twist_step_sec", 0.45)),
+                    q_right_hold,
+                    "周期%d 关节回放回正" % c,
+                )
+                return_done = -done_rad
+            else:
+                q_return, return_done = _twist_ik_to_angle(
+                    arm_pub, ik_client, cap_x, cap_y, touch_z, ref_quat,
+                    -done_rad, q, q_right_hold, params,
+                    tag="周期%d 固定TCP反向回正" % c,
+                    start_ang=current_ang,
+                    apply_level_bias=False,
+                )
+            if q_return is None or abs(return_done + done_rad) > math.radians(0.5):
+                rospy.logwarn("⚠️ 尝试 %d 固定TCP回正未完成，停止后续重夹", c)
+                break
+            q = q_return
+            current_ang += return_done
+            close_left_cap_gradual(params, tag_prefix="twist-inplace-reclose-%d" % c)
+            time.sleep(0.2)
+            hold_hz = float((_ACTIVE_ARM_PARAMS or {}).get("arm_hold_republish_hz", 20.0))
+            q_steady = np.copy(q)
+            q_steady[RIGHT_SLICE] = q_right_hold[RIGHT_SLICE]
+            _republish_arm_hold(arm_pub, q_steady, 0.8, hold_hz)
+            if partial_attempt:
+                rospy.logwarn("⚠️ 本轮只完成 %.1f°，已回正；不再把重复小动作累计为拧盖进度", math.degrees(done_rad))
+                break
+
+    return q, twisted_any
+
+
+def _twist_orbital_ik(arm_pub, ik_client, cap_x, cap_y, touch_z, ref_quat, total_rad,
+                      q_seed, q_right_hold, params, tag, start_ang=0.0):
+    """
+    轨道式 IK 拧盖：TCP 绕瓶盖中心 (cap_x, cap_y) 做小圆轨道运动，同时姿态绕 Z 旋转。
+    轨道半径 = |left_tcp_extra + tcp_off|，即 TCP 当前位置到 cap 中心的距离。
+
+    start_ang: 起始角度（前转=0；回正=cycle_rad，逐步回到0）
+    total_rad: 总转角（前转=+cycle_rad；回正=-cycle_rad）
+    """
+    step_deg = float(params.get("left_cap_twist_step_deg", 15.0))
+    step_sec = float(params.get("left_cap_twist_step_sec", 0.45))
+    n = max(1, int(math.ceil(abs(math.degrees(total_rad)) / step_deg)))
+    # TCP 当前位置距 cap 中心的完整偏移 = tcp_offset + left_extra
+    off_x, off_y = mag.tcp_offsets_for_arm(True)
+    full_off_x = float(off_x) + float(params.get("left_tcp_extra_x_m", 0.0))
+    full_off_y = float(off_y) + float(params.get("left_tcp_extra_y_m", 0.0))
+    rospy.logdebug(
+        "轨道偏移: base=(%.3f,%.3f) extra=(%.3f,%.3f) full=(%.3f,%.3f)",
+        off_x, off_y, params.get("left_tcp_extra_x_m", 0.0),
+        params.get("left_tcp_extra_y_m", 0.0), full_off_x, full_off_y,
+    )
+    q = np.copy(q_seed)
+    for i in range(1, n + 1):
+        frac = float(i) / float(n)
+        ang = start_ang + total_rad * frac  # 绝对角度
+        cos_a, sin_a = math.cos(ang), math.sin(ang)
+        # TCP = C + Rz(θ) * full_off  → 从起始位置开始平滑绕 C 旋转
+        r_x = cos_a * full_off_x - sin_a * full_off_y
+        r_y = sin_a * full_off_x + cos_a * full_off_y
+        orbit_x = cap_x + r_x
+        orbit_y = cap_y + r_y
+        orbit_z = touch_z
+        # 姿态：绕世界 Z 转 ang
+        q_ori = _quat_mul(_quat_world_z(ang), ref_quat)
+        pose = mag._build_pose_stamped(orbit_x, orbit_y, orbit_z, q_ori)
+        q_next = solve_left_ik_holding_right(
+            ik_client, pose, q, q_right_hold,
+            "[%s] 轨道 θ=%.1f°" % (tag, math.degrees(ang)),
+            quiet=(i > 1),
+        )
+        if q_next is None:
+            rospy.logerr("❌ [%s] 轨道 IK 无解 @ θ=%.0f°", tag, math.degrees(ang))
+            return None
+        execute_hold_right(
+            arm_pub, q_next, step_sec, q_right_hold,
+            "%s %.0f%%" % (tag, frac * 100.0),
+        )
+        q = q_next
+    return q
+
+
+def _twist_cap_cycle_ik(arm_pub, ik_client, cap_x, cap_y, cap_z, q_start, q_right_hold, params,
+                        contact_z=None):
+    """
+    循环拧盖（轨道棘轮式）：
+    TCP 绕瓶盖中心轨道旋转 → 松爪 → 轨道返回 → 再夹 → 重复。
+    基于 IK 的 task-space 轨道运动，比 l7 关节旋转更精准。
     """
     cycles = int(params.get("left_cap_twist_cycles", 4))
     cycle_deg = float(params.get("left_cap_twist_cycle_deg", 90.0))
     if cycles <= 0:
         rospy.logwarn("⏭️ left_cap_twist_cycles=0：跳过拧盖")
-        return q_start
+        return q_start, False
 
-    touch_z = _cap_touch_z(cap_z, params)
-    ref_quat = _twist_ref_quat(cap_x, cap_y, params)
-    dt = float(params.get("left_cap_twist_step_sec", 0.45))
+    touch_z = float(contact_z) if contact_z is not None else _cap_touch_z(cap_z, params)
     reclose = bool(params.get("left_cap_twist_reclose", True))
     release_pos = float(params.get("left_cap_twist_release_pos", 12.0))
+    cycle_rad = math.radians(cycle_deg)
 
+    # 拧盖参考姿态（沿用触顶姿态）
+    ref_quat = _twist_ref_quat(cap_x, cap_y, params)
     rospy.loginfo(
-        "🔄 拧盖 cycle_ik: %d×%.0f° | touch_z=%.3f | ref_yaw=%.1f°(朝右基准)",
-        cycles, cycle_deg, touch_z, math.degrees(_quat_yaw_rad(ref_quat)),
+        "🔄 拧盖 cycle_ik（轨道棘轮式）: %d×%.0f° | touch_z=%.3f | reclose=%s",
+        cycles, cycle_deg, touch_z, reclose,
     )
 
     q = np.copy(q_start)
-    q = _move_left_to_cap_pose(
-        arm_pub, ik_client, cap_x, cap_y, touch_z, ref_quat, q, q_right_hold,
-        "[拧盖] 对准朝右基准", "拧盖基准：夹爪朝右", dt,
-    )
-    if q is None:
-        rospy.logerr("❌ 无法对准拧盖基准姿态")
-        return q_start
-
-    cycle_rad = math.radians(cycle_deg)
+    twisted_any = False
     for c in range(cycles):
-        rospy.loginfo("🔩 拧盖周期 %d/%d → 绕 z +%.0f°", c + 1, cycles, cycle_deg)
-        q = _twist_ik_to_angle(
-            arm_pub, ik_client, cap_x, cap_y, touch_z, ref_quat, cycle_rad,
-            q, q_right_hold, params, "周期%d转" % (c + 1),
+        rospy.loginfo("🔩 拧盖周期 %d/%d → 绕 cap 轨道 +%.0f°", c + 1, cycles, cycle_deg)
+
+        # --- Step 1: 旋转 — TCP 绕 cap 轨道前进 cycle_deg ---
+        q = _twist_orbital_ik(
+            arm_pub, ik_client, cap_x, cap_y, touch_z, ref_quat,
+            cycle_rad, q, q_right_hold, params,
+            tag="周期%d 旋转" % (c + 1),
         )
         if q is None:
-            rospy.logwarn("⚠️ 周期 %d 旋转 IK 失败，停止", c + 1)
+            rospy.logwarn("⚠️ 周期 %d 轨道旋转 IK 失败，停止", c + 1)
             break
+        twisted_any = True
 
+        # --- Step 2: 松开夹爪（防回拖瓶盖） ---
         pos, vel, eff = build_left_claw_cmd_hold_right(
             release_pos, params.get("left_contact_preclose_effort", 0.22),
         )
         get_controller().call(pos, vel, eff, tag="twist-release-%d" % (c + 1))
         time.sleep(0.5)
 
-        q = _move_left_to_cap_pose(
-            arm_pub, ik_client, cap_x, cap_y, touch_z, ref_quat, q, q_right_hold,
-            "[拧盖] 回正朝右", "周期%d 回正朝右" % (c + 1), dt,
+        # --- Step 3: 夹爪返回开始 — TCP 反向轨道回到 cap 中心 ---
+        q = _twist_orbital_ik(
+            arm_pub, ik_client, cap_x, cap_y, touch_z, ref_quat,
+            -cycle_rad, q, q_right_hold, params,
+            tag="周期%d 回正" % (c + 1),
+            start_ang=cycle_rad,  # 从 cycle_rad 平滑回到 0
         )
         if q is None:
-            rospy.logwarn("⚠️ 周期 %d 回正 IK 失败", c + 1)
+            rospy.logwarn("⚠️ 周期 %d 轨道回正 IK 失败", c + 1)
             break
 
+        # --- Step 4: 闭合夹爪再旋转 (非末周期) ---
         if reclose and c < cycles - 1:
-            pos, vel, eff = build_left_claw_cmd_hold_right(
-                params["left_cap_close_pos"], params["left_cap_effort"],
-            )
-            get_controller().call(pos, vel, eff, tag="twist-reclose-%d" % (c + 1))
-            time.sleep(0.6)
+            close_left_cap_gradual(params, tag_prefix="twist-reclose-%d" % (c + 1))
+            time.sleep(0.2)
             hold_hz = float((_ACTIVE_ARM_PARAMS or {}).get("arm_hold_republish_hz", 20.0))
             q_steady = np.copy(q)
             q_steady[RIGHT_SLICE] = q_right_hold[RIGHT_SLICE]
             _republish_arm_hold(arm_pub, q_steady, 0.8, hold_hz)
 
-    return q
+    return q, twisted_any
 
 
 def _twist_cap_joint_l7(arm_pub, q_start, q_right_hold, params):
@@ -1289,20 +2215,32 @@ def _twist_cap_joint_l7(arm_pub, q_start, q_right_hold, params):
     return q
 
 
-def twist_cap(arm_pub, ik_client, cap_x, cap_y, cap_z, q_start, q_right_hold, params):
+def twist_cap(arm_pub, ik_client, cap_x, cap_y, cap_z, q_start, q_right_hold, params,
+              contact_z=None):
     """
     拧盖入口。
-    cycle_ik（默认）：TCP xyz 固定，姿态绕世界 z 分步 IK，每周期 90°→松爪→回正朝右。
-    joint_l7：旧版仅加 l7 关节。
+    cycle_ik（默认）：轨道棘轮式 — TCP 绕瓶盖中心轨道旋转→松爪→轨道返回→再夹→重复。
+    joint_l7（legacy）：旧版仅加 l7 关节（无轨道，不推荐）。
     """
     mode = str(params.get("left_cap_twist_mode", "cycle_ik")).lower()
+    if mode in ("in_place_ik", "inplace_ik", "fixed_xyz"):
+        if int(params.get("left_cap_twist_cycles", 4)) <= 0:
+            rospy.logwarn("⏭️ left_cap_twist_cycles=0：跳过 in_place_ik 拧盖")
+            return q_start
+        q_out, twisted = _twist_cap_in_place_ik(
+            arm_pub, ik_client, cap_x, cap_y, cap_z, q_start, q_right_hold, params,
+            contact_z=contact_z,
+        )
+        return q_out
     if mode == "cycle_ik":
         if int(params.get("left_cap_twist_cycles", 4)) <= 0:
             rospy.logwarn("⏭️ left_cap_twist_cycles=0：跳过 cycle_ik 拧盖")
             return q_start
-        return _twist_cap_cycle_ik(
+        q_out, twisted = _twist_cap_cycle_ik(
             arm_pub, ik_client, cap_x, cap_y, cap_z, q_start, q_right_hold, params,
+            contact_z=contact_z,
         )
+        return q_out
     if int(params.get("twist_steps", 15)) <= 0:
         rospy.logwarn("⏭️ twist_steps=0：跳过 joint_l7 拧盖")
         return q_start
@@ -1412,8 +2350,9 @@ def _left_cap_pose(x, y, z, approach_pitch_override=None, tip_phase="preclose"):
     params = _ACTIVE_LEFT_CAP_PARAMS or {}
     kw = _left_cap_orientation_kwargs()
     pitch = _locked_approach_pitch(params, approach_pitch_override)
+    yaw_x, yaw_y = _left_cap_yaw_xy(x, y, params)
     quat = get_topdown_left_quat(
-        x, y, approach_pitch_override=pitch, **kw,
+        yaw_x, yaw_y, approach_pitch_override=pitch, **kw,
     )
     ee_x, ee_y, ee_z = _fingertip_target_to_ee_xyz(x, y, z, quat, params, tip_phase=tip_phase)
     return mag._build_pose_stamped(ee_x, ee_y, ee_z, quat)
@@ -1630,19 +2569,35 @@ def _run_left_classic_approach(arm_pub, ik_client, cap_x, cap_y, cap_z, hover_z,
 
 def run_left_approach_only(arm_pub, ik_client, vision_x, vision_y, bottle_z,
                            q_right_hold, params, grasp_x=None, grasp_y=None, grasp_z=None,
-                           stop_at="contact", tune_mode=False):
+                           stop_at="contact", tune_mode=False,
+                           cap_override=None):
     """
     左手至瓶盖悬停或触顶高度（不闭爪、不拧盖）。
     tune_mode=True：触顶时不自动腕偏置、不 preclose，便于人工调平。
+    cap_override: (cap_x, cap_y, cap_z) 可选，来自 HSV 瓶盖检测，跳过几何推算。
     返回 (ok, q_left, meta)；meta 含 cap_x/y/z 与 ik_baseline（14轴快照）。
     """
-    global _ACTIVE_LEFT_CAP_PARAMS
+    global _ACTIVE_LEFT_CAP_PARAMS, _ACTIVE_LEFT_CAP_XY
     _ACTIVE_LEFT_CAP_PARAMS = params
+    _ACTIVE_LEFT_CAP_XY = {"yaw_x": None, "yaw_y": None}
     _reset_left_ik_ctx()
-    cap_x, cap_y, cap_z = compute_cap_target(
-        vision_x, vision_y, bottle_z, params,
-        grasp_x=grasp_x, grasp_y=grasp_y, grasp_z=grasp_z,
-    )
+    if cap_override is not None and all(v is not None for v in cap_override):
+        cap_x = float(cap_override[0]) + float(params.get("left_tcp_extra_x_m", 0.0))
+        cap_y = float(cap_override[1]) + float(params.get("left_tcp_extra_y_m", 0.0))
+        cap_z = float(cap_override[2]) + float(params.get("left_tcp_extra_z_m", 0.0))
+        rospy.loginfo(
+            "🔵 使用 HSV 瓶盖坐标: raw=(%.3f,%.3f,%.3f) + extra=(%.3f,%.3f,%.3f) → IK=(%.3f,%.3f,%.3f)",
+            cap_override[0], cap_override[1], cap_override[2],
+            params.get("left_tcp_extra_x_m", 0.0),
+            params.get("left_tcp_extra_y_m", 0.0),
+            params.get("left_tcp_extra_z_m", 0.0),
+            cap_x, cap_y, cap_z,
+        )
+    else:
+        cap_x, cap_y, cap_z = compute_cap_target(
+            vision_x, vision_y, bottle_z, params,
+            grasp_x=grasp_x, grasp_y=grasp_y, grasp_z=grasp_z,
+        )
     hover_z = cap_z + params["cap_hover_m"]
     high_z = hover_z + params["left_high_approach_m"]
     lat = params["left_lateral_m"]
@@ -1656,6 +2611,23 @@ def run_left_approach_only(arm_pub, ik_client, vision_x, vision_y, bottle_z,
 
     classic_sec = _left_move_sec(params, "left_ik_classic_move_sec", 4.0, approach_only=True)
     direct_first = bool(params.get("left_approach_direct_first", True))
+
+    # 🔧 自动标定：从 base_link extra + 当前抓取四元数反算 EE 系偏移
+    _ee_cal = _calibrate_ee_offset(cap_x, cap_y, params)
+    if _ee_cal is not None:
+        rospy.loginfo(
+            "🔧 [标定] 基于 extra=(%.3f,%.3f,%.3f) → EE系偏移=[%.4f, %.4f, %.4f]",
+            params.get("left_tcp_extra_x_m", 0.0),
+            params.get("left_tcp_extra_y_m", 0.0),
+            params.get("left_tcp_extra_z_m", 0.0),
+            float(_ee_cal[0]), float(_ee_cal[1]), float(_ee_cal[2]),
+        )
+        rospy.loginfo(
+            "🔧 [标定] 下次用: _left_claw_tip_enable:=true _left_claw_tip_mode:=ee "
+            "_left_tcp_extra_x_m:=0 _left_tcp_extra_y_m:=0 _left_tcp_extra_z_m:=0 "
+            "_left_claw_tip_ee_close_m:=\"[%.4f, %.4f, %.4f]\"",
+            float(_ee_cal[0]), float(_ee_cal[1]), float(_ee_cal[2]),
+        )
 
     if not _left_at_ready_pose(mag.last_commanded_joints_rad, q_right_hold):
         execute_hold_right(
@@ -1689,17 +2661,28 @@ def run_left_approach_only(arm_pub, ik_client, vision_x, vision_y, bottle_z,
 
     reach_z = _ACTIVE_LEFT_IK_CTX.get("reach_z") or hover_z
     if reach_z > hover_z + 0.012:
-        if _left_vertical_to_z(
-            arm_pub, ik_client, cap_x, cap_y, hover_z, q_right_hold, params,
-            "[左手] 垂直降至悬停 z=%.3f" % hover_z,
-            "左手垂直降至悬停",
-            duration=_left_move_sec(params, "left_hover_move_sec", 3.2, approach_only=True),
-            contact_phase=False,
-        ) is None:
-            rospy.logwarn("⚠️ 悬停 z=%.3f IK 无解，从当前高度 z=%.3f 继续", hover_z, reach_z)
+        # 梯度降级：hover_z → hover_z+0.01 → hover_z+0.02 ... 逐一尝试
+        z_candidates = [hover_z]
+        step = 0.01
+        while z_candidates[-1] + step <= reach_z + 0.005:
+            z_candidates.append(z_candidates[0] + step * len(z_candidates))
+        z_candidates.reverse()  # 从高到低试
+        descended = False
+        for z_try in z_candidates:
+            q_try = _left_vertical_to_z(
+                arm_pub, ik_client, cap_x, cap_y, z_try, q_right_hold, params,
+                "[左手] 垂直降至 z=%.3f" % z_try,
+                "左手垂直降至 z=%.3f" % z_try,
+                duration=1.2,
+                contact_phase=False,
+            )
+            if q_try is not None:
+                reach_z = z_try
+                descended = True
+                break
+        if not descended:
+            rospy.logwarn("⚠️ 垂直降级全部失败，从当前高度 z=%.3f 继续", reach_z)
             hover_z = reach_z
-        else:
-            reach_z = hover_z
 
     cap_x, cap_y, _ = refine_cap_xy_search(
         arm_pub, ik_client, cap_x, cap_y, hover_z, quat,
@@ -1721,7 +2704,7 @@ def run_left_approach_only(arm_pub, ik_client, vision_x, vision_y, bottle_z,
         (_ACTIVE_LEFT_IK_CTX.get("reach_z") or hover_z) - params["contact_step_m"],
         hover_z - params["contact_step_m"],
     )
-    q_contact, descended_ok = descend_until_contact(
+    q_contact, descended_ok, contact_z_actual = descend_until_contact(
         arm_pub, ik_client, cap_x, cap_y, cap_z, quat,
         mag.last_commanded_joints_rad, q_right_hold, params,
         start_z=descend_start,
@@ -1732,20 +2715,26 @@ def run_left_approach_only(arm_pub, ik_client, vision_x, vision_y, bottle_z,
         return False, np.copy(mag.last_commanded_joints_rad), meta
 
     meta["ik_baseline"] = np.copy(q_contact)
-    rospy.loginfo("✅ 左手已至触顶高度（stop_at=contact），可人工调平")
+    meta["contact_z"] = contact_z_actual
+    rospy.loginfo(
+        "✅ 左手已至触顶高度（stop_at=contact）z=%.3f，可人工调平", contact_z_actual,
+    )
     return True, q_contact, meta
 
 
 def run_left_unscrew(arm_pub, ik_client, vision_x, vision_y, bottle_z,
-                     q_right_hold, params, grasp_x=None, grasp_y=None, grasp_z=None):
+                     q_right_hold, params, grasp_x=None, grasp_y=None, grasp_z=None,
+                     cap_override=None):
     """
     阶段 B~D：左手侧向高位 → 平移到瓶前 → 水平切入 → 垂直悬停
     → (可选) XY 精搜 → 触顶 → 轻夹 → (可选)拧盖。
+    cap_override: (cap_x, cap_y, cap_z) 可选，来自 HSV 瓶盖检测。
     """
     ok, q_contact, meta = run_left_approach_only(
         arm_pub, ik_client, vision_x, vision_y, bottle_z, q_right_hold, params,
         grasp_x=grasp_x, grasp_y=grasp_y, grasp_z=grasp_z,
         stop_at="contact", tune_mode=False,
+        cap_override=cap_override,
     )
     if not ok:
         return False, q_contact
@@ -1770,6 +2759,7 @@ def run_left_unscrew(arm_pub, ik_client, vision_x, vision_y, bottle_z,
         arm_pub, ik_client,
         meta.get("cap_x"), meta.get("cap_y"), meta.get("cap_z"),
         q_steady, q_right_hold, params,
+        contact_z=meta.get("contact_z"),
     )
     rospy.loginfo("✅ 阶段 B~D 完成（是否拧开需目视确认）")
     return True, q_last
@@ -1785,10 +2775,18 @@ def verify_right_grasp(params):
     eff = float(st.data.effort[1])
     min_pos = params["right_grasp_min_close_pos"]
     min_eff = params["right_grasp_min_effort"]
+    accept_pos = params.get("right_grasp_accept_close_pos", 70.0)
     if pos < min_pos:
         return False, "右爪闭合不足 pos=%.1f (需≥%.0f)" % (pos, min_pos)
+    if eff < min_eff and pos < accept_pos:
+        return False, "右爪 effort 过低 %.2f (需≥%.2f，pos %.1f<%.0f，可能空抓)" % (
+            eff, min_eff, pos, accept_pos,
+        )
     if eff < min_eff:
-        return False, "右爪 effort 过低 %.2f (需≥%.2f，可能空抓)" % (eff, min_eff)
+        rospy.logwarn(
+            "⚠️ 右手抓握 effort 偏低 %.2f，但闭合反馈 pos=%.1f ≥ %.0f，放行",
+            eff, pos, accept_pos,
+        )
     rospy.loginfo("✅ 右手抓握验收: pos=%.1f effort=%.2f", pos, eff)
     return True, ""
 
@@ -1800,14 +2798,57 @@ def _arms_near_init(tolerance_rad=0.15):
     return float(np.max(np.abs(q - init))) < tolerance_rad
 
 
+def _claws_confirmed_open(max_pos=25.0):
+    claw = get_controller()
+    st = claw.last_state
+    if st is None or len(st.data.position) < 2:
+        return False
+    return all(float(v) <= max_pos for v in st.data.position[:2])
+
+
+def _open_claw_best_effort(tag="release"):
+    """重复发松爪命令，并以状态反馈确认双爪已打开。"""
+    claw = get_controller()
+    pos, vel, eff = build_open_cmd()
+    max_attempts = 6
+    for i in range(max_attempts):
+        if _claws_confirmed_open():
+            rospy.loginfo("✅ %s 双爪已确认打开", tag)
+            return True
+
+        # 上一个夹爪动作仍在Moving时服务会拒绝，先给它时间停稳。
+        settle_deadline = time.time() + 1.5
+        while time.time() < settle_deadline:
+            st = claw.last_state
+            if st is not None and len(st.state) >= 2 and all(int(v) != 1 for v in st.state[:2]):
+                break
+            time.sleep(0.1)
+
+        attempt_tag = tag if i == 0 else "%s-r%d" % (tag, i + 1)
+        ok = claw.call(pos, vel, eff, tag=attempt_tag, abort_on_stall=False, wait_sec=0.25)
+        if not ok:
+            rospy.logwarn("⚠️ %s 松爪指令失败 %d/%d，等待后重试", tag, i + 1, max_attempts)
+            time.sleep(0.6)
+            continue
+
+        confirm_deadline = time.time() + 2.5
+        while time.time() < confirm_deadline:
+            if _claws_confirmed_open():
+                rospy.loginfo("✅ %s 双爪已确认打开", tag)
+                return True
+            time.sleep(0.1)
+        rospy.logwarn("⚠️ %s 松爪未到位 %d/%d，继续重试", tag, i + 1, max_attempts)
+
+    rospy.logerr("❌ %s 双爪未确认打开，禁止执行大鹏展翅", tag)
+    return False
+
+
 def safe_abort(arm_pub, q_right_hold=None, q_left_last=None):
-    """
-    异常中止。若双臂已前伸（q_right_hold 或当前构型远离 init），
-    必须走 vla 大鹏展翅，禁止直跳 init 扫桌。
-    """
-    rospy.logwarn("⬅️ 异常中止：松爪 + 安全收手 ...")
-    mag.call_leju_claw(*build_open_cmd(), tag="release-abort")
-    time.sleep(0.5)
+    """异常中止。双臂前伸时必须走 vla 大鹏展翅，禁止直跳 init 扫桌。"""
+    rospy.logwarn("⬅️ 异常中止：先确认松爪，再安全收手 ...")
+    if not _open_claw_best_effort(tag="release-abort"):
+        rospy.logerr("🛑 夹爪未松开，保持当前手臂姿态；请人工处理或急停")
+        return False
 
     need_vla_return = q_right_hold is not None or not _arms_near_init()
     if need_vla_return:
@@ -1818,7 +2859,9 @@ def safe_abort(arm_pub, q_right_hold=None, q_left_last=None):
     else:
         rospy.loginfo("⬅️ 构型近 init → 直接归位")
         mag.execute_dual_arm_init_home(arm_pub)
+    _open_claw_best_effort(tag="release-abort-after-return")
     _EMERGENCY_CTX["done"] = True
+    return True
 
 
 def main():
@@ -1826,6 +2869,7 @@ def main():
     rospy.init_node("bimanual_unscrew")
     signal.signal(signal.SIGINT, _on_sigint)
     params = load_params()
+    apply_claw_safe_limits(params)
     global _ACTIVE_ARM_PARAMS
     _ACTIVE_ARM_PARAMS = params
     _log_key_params(params)
@@ -1849,14 +2893,28 @@ def main():
 
     print("=" * 60)
     print("🤝 双臂协同 v1：右手抓瓶 + 左手拧盖")
-    print("   分阶段执行 | 瓶盖=几何推算 | 实机务必有人监护")
+    action = str(params.get("left_cap_twist_action", "tighten"))
+    action_label = "拧紧" if action == "tighten" else "拧松（待标定）"
+    print("   动作模式: %s [%s]" % (action_label, action))
+    if params.get("use_hsv_cap", True):
+        print("   分阶段执行 | 瓶盖=HSV检测(/vla/cap_target) 回退几何推算 | 实机务必有人监护")
+    else:
+        print("   分阶段执行 | 瓶盖=几何推算 | 实机务必有人监护")
     twist_mode = str(params.get("left_cap_twist_mode", "cycle_ik"))
     if twist_mode == "cycle_ik":
         nc = int(params.get("left_cap_twist_cycles", 4))
         if nc <= 0:
             print("   ⚠️ left_cap_twist_cycles=0 → 只测接近+触顶+轻夹")
         else:
-            print("   拧盖 cycle_ik: %d×%.0f° → 松爪 → 回正朝右" % (
+            print("   拧盖 cycle_ik（轨道棘轮式）: %d×%.0f° → TCP绕cap轨道 → 松爪 → 轨道返回 → 再夹" % (
+                nc, params.get("left_cap_twist_cycle_deg", 90.0),
+            ))
+    elif twist_mode in ("in_place_ik", "inplace_ik", "fixed_xyz"):
+        nc = int(params.get("left_cap_twist_cycles", 4))
+        if nc <= 0:
+            print("   ⚠️ left_cap_twist_cycles=0 → 只测接近+触顶+轻夹")
+        else:
+            print("   拧盖 in_place_ik（固定指尖XYZ）: %d×%.0f°" % (
                 nc, params.get("left_cap_twist_cycle_deg", 90.0),
             ))
     elif int(params["twist_steps"]) <= 0:
@@ -1865,6 +2923,17 @@ def main():
         print("   拧盖 joint_l7: %d 步 × %.0f°" % (
             int(params["twist_steps"]), params["twist_deg_per_step"],
         ))
+    squeeze_sec = (
+        params.get("left_cap_final_squeeze_sec", 0.7)
+        if params.get("left_cap_final_squeeze_enable", True) else 0.0
+    )
+    squeeze_passes = max(int(params.get("left_cap_final_squeeze_passes", 1)), 1)
+    print("   左爪夹盖: close=%.0f effort=%.2f 终压=%dx%.1fs (上限 %.0f/%.1fA)" % (
+        params["left_cap_close_pos"], params["left_cap_effort"],
+        squeeze_passes, squeeze_sec,
+        params.get("claw_max_close_pos", 95.0),
+        params.get("claw_max_close_effort", 1.2),
+    ))
     print("=" * 60)
 
     mag.call_leju_claw(*build_open_cmd(), tag="open")
@@ -1904,45 +2973,49 @@ def main():
         safe_abort(arm_pub)
         return
 
+    # 🔵 右手抓瓶之前采集 HSV 瓶盖坐标
+    hsv_cx, hsv_cy, hsv_cz = _collect_hsv_cap_target(params, timeout_sec=3.0)
+    cap_override = (hsv_cx, hsv_cy, hsv_cz) if hsv_cx is not None else None
+
     q_right_hold = None
     try:
         ok, q_right_hold, grasp_x, grasp_y, grasp_z = run_right_grasp_hold(
             left_arm, right_arm, arm_pub, ik_client, x_hist, y_hist, params,
         )
         if not ok:
-            safe_abort(
-                arm_pub,
-                q_right_hold=q_right_hold,
-                q_left_last=mag.last_commanded_joints_rad,
-            )
+            safe_abort(arm_pub, q_right_hold=q_right_hold,
+                       q_left_last=mag.last_commanded_joints_rad)
             return
 
         _EMERGENCY_CTX["armed"] = True
         _EMERGENCY_CTX["q_right_hold"] = np.copy(q_right_hold)
         _EMERGENCY_CTX["q_left"] = np.copy(mag.last_commanded_joints_rad)
 
+        # 🔵 抓后再读一次瓶盖
+        hsv_cx2, hsv_cy2, hsv_cz2 = _collect_hsv_cap_target(params, timeout_sec=2.0)
+        if hsv_cx2 is not None:
+            cap_override = (hsv_cx2, hsv_cy2, hsv_cz2)
+            rospy.loginfo("🔵 抓后重采瓶盖成功: (%.3f, %.3f, %.3f)", hsv_cx2, hsv_cy2, hsv_cz2)
+        else:
+            rospy.loginfo("🔵 抓后重采失败，沿用抓前坐标")
+
         if params["cap_re_vision_after_grasp"]:
             rx, ry = _quick_re_vision(params)
             if rx is not None:
                 raw_x, raw_y = rx, ry
-                rospy.loginfo(
-                    "👁️ 使用抓后视觉: (%.3f, %.3f) 替换抓前 (%.3f, %.3f)",
-                    raw_x, raw_y, float(np.median(x_hist)), float(np.median(y_hist)),
-                )
+                rospy.loginfo("👁️ 使用抓后视觉: (%.3f, %.3f) 替换抓前 (%.3f, %.3f)",
+                              raw_x, raw_y, float(np.median(x_hist)), float(np.median(y_hist)))
 
         ok, q_left_last = run_left_unscrew(
             arm_pub, ik_client, raw_x, raw_y, bottle_z, q_right_hold, params,
             grasp_x=grasp_x, grasp_y=grasp_y, grasp_z=grasp_z,
+            cap_override=cap_override,
         )
         _EMERGENCY_CTX["q_left"] = np.copy(
-            q_left_last if q_left_last is not None else mag.last_commanded_joints_rad
-        )
+            q_left_last if q_left_last is not None else mag.last_commanded_joints_rad)
         if not ok:
-            safe_abort(
-                arm_pub,
-                q_right_hold=q_right_hold,
-                q_left_last=_EMERGENCY_CTX["q_left"],
-            )
+            safe_abort(arm_pub, q_right_hold=q_right_hold,
+                       q_left_last=_EMERGENCY_CTX["q_left"])
             return
         if q_left_last is None:
             safe_abort(arm_pub, q_right_hold=q_right_hold)
@@ -1955,8 +3028,7 @@ def main():
         _EMERGENCY_CTX["done"] = True
         try:
             rospy.ServiceProxy("/arm_traj_change_mode", changeArmCtrlMode)(
-                changeArmCtrlModeRequest(control_mode=0)
-            )
+                changeArmCtrlModeRequest(control_mode=0))
         except Exception:
             pass
         print("🎉 双臂协同流程结束（请确认瓶盖是否已拧松）")
@@ -1971,7 +3043,6 @@ def main():
     finally:
         if _EMERGENCY_CTX.get("armed") and not _EMERGENCY_CTX.get("done"):
             _emergency_safe_return("finally 兜底")
-
 
 if __name__ == "__main__":
     main()

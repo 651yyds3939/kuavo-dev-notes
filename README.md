@@ -106,9 +106,9 @@ git lfs pull   # 若 pull 后新增了 LFS 大文件，建议执行
 
 > **说明：** Orin（上位机）与 NUC（下位机）都是 Kuavo 4 Pro 自带算力，**不是**「有没有真机」的区别。🟡 与 🔴 表示的是**在真机上的联调范围与物理风险**，不是第二套硬件门槛。
 
-* 🟢 **RL 训练与 Sim2Sim（15.1 – 15.3、23.3 – 23.4）**：带 NVIDIA GPU 的 Ubuntu 主机即可，无需机器人。
+* 🟢 **RL 训练与 Sim2Sim（15.1–15.3、23.2–23.6、23.8）**：带 NVIDIA GPU 的 Ubuntu 主机即可，无需机器人。
 * 🟡 **单机侧真机（16、17、21.x、32、部分 4.x）**：机器人需上电，但主要在一侧算力上跑通；仍建议龙门架与急停就绪。
-* 🔴 **双机联调 / 全身部署（22.x 抓取链、15.4、23.5 – 23.6、28 等）**：NUC + Orin 组网，或涉及全身 RL / MoveIt 真机，**必须**低速、防坠、熟练急停。
+* 🔴 **双机联调 / 全身部署（22.x 抓取链、15.4、23.5 – 23.7、28 等）**：NUC + Orin 组网，或涉及全身 RL / MoveIt 真机，**必须**低速、防坠、熟练急停。
 
 **双机架构（真机联调时）：**
 
@@ -204,12 +204,14 @@ git lfs pull   # 若 pull 后新增了 LFS 大文件，建议执行
 
 | 标记 | 文档 | 说明 |
 |------|------|------|
-| 🟢 | [`23.1.RL_dance_overview.md`](./kuavo_notes/23.1.RL_dance_overview.md) | S49 舞蹈 RL 总览与分支纪律 |
-| 🟢 | [`23.2.RL_dance_motion_data.md`](./kuavo_notes/23.2.RL_dance_motion_data.md) | 舞蹈 CSV / 动作数据准备 |
-| 🟢 | [`23.3.RL_dance_train.md`](./kuavo_notes/23.3.RL_dance_train.md) | S49 训练（115 维 obs、mimic 奖励） |
-| 🟢 | [`23.4.RL_dance_sim2sim.md`](./kuavo_notes/23.4.RL_dance_sim2sim.md) | MuJoCo 舞蹈验证 |
-| 🔴 | [`23.5.RL_dance_deploy_hybrid.md`](./kuavo_notes/23.5.RL_dance_deploy_hybrid.md) | 舞蹈真机混合部署 |
-| 🔴 | [`23.6.RL_dance_terminal_commands.md`](./kuavo_notes/23.6.RL_dance_terminal_commands.md) | 舞蹈终端命令全集 |
+| 🔴 | [`23.1.RL_dance_terminal_commands.md`](./kuavo_notes/23.1.RL_dance_terminal_commands.md) | 舞蹈终端命令全集 |
+| 🟢 | [`23.2.RL_dance_overview.md`](./kuavo_notes/23.2.RL_dance_overview.md) | S49 舞蹈 RL 总览与当前状态 |
+| 🟢 | [`23.3.RL_dance_motion_data.md`](./kuavo_notes/23.3.RL_dance_motion_data.md) | 舞蹈 CSV / v18 arms-only 参考数据 |
+| 🟢 | [`23.4.RL_dance_train.md`](./kuavo_notes/23.4.RL_dance_train.md) | S49 训练（当前 115 维 obs） |
+| 🟡 | [`23.5.RL_dance_reward_iterate.md`](./kuavo_notes/23.5.RL_dance_reward_iterate.md) | 奖励 v1–v18、视频/TensorBoard 调参与 RUN_CONFIG |
+| 🟢 | [`23.6.RL_dance_sim2sim.md`](./kuavo_notes/23.6.RL_dance_sim2sim.md) | MuJoCo 舞蹈 Sim2Sim 与观测顺序 |
+| 🔴 | [`23.7.RL_dance_deploy_hybrid.md`](./kuavo_notes/23.7.RL_dance_deploy_hybrid.md) | duck_sit 与 Hybrid WBC+RL 部署 |
+| 🟢 | [`23.8.RL_dance_pure_rl_sim2sim_debug.md`](./kuavo_notes/23.8.RL_dance_pure_rl_sim2sim_debug.md) | 纯 RL 对齐、WBC seed 接管与 8 处 Bug |
 
 ### 🟢 世界模型
 
@@ -225,7 +227,7 @@ git lfs pull   # 若 pull 后新增了 LFS 大文件，建议执行
 | 🔴 | [`19.tremble_rosbag.md`](./kuavo_notes/19.tremble_rosbag.md) | 抖动 rosbag 排障 |
 | 🟡 | [`25.update.md`](./kuavo_notes/25.update.md) | 官方包升级与 launch 排障 |
 
-辅助脚本：[`scripts/analyze_r_takeover_bag.py`](./kuavo_notes/scripts/analyze_r_takeover_bag.py)（RL bag 分析，见 23.5）。
+辅助脚本：[`scripts/analyze_r_takeover_bag.py`](./kuavo_notes/scripts/analyze_r_takeover_bag.py)（RL bag 分析，见 23.7–23.8）。
 
 
 ### 📎 官方案例（参考）

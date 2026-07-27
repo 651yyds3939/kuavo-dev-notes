@@ -13,9 +13,9 @@ class KuavoS42TDMPC2RunnerCfg:
 	save_interval: int = 200
 	log_interval: int = 10
 
-	# obs / action
+	# obs / action — bridge passes [-1,1] through; physical scale is env joint_pos.scale only
 	obs_profile: str = "dance"
-	action_scale: float = 0.30
+	action_scale: float = 1.0
 
 	# collection — updates_per_iter<=0 enables auto (transitions_per_iter // batch_size)
 	steps_per_env: int = 24
@@ -39,6 +39,9 @@ class KuavoS42TDMPC2RunnerCfg:
 
 	# runner behaviour
 	init_at_random_ep_len: bool = True
+	seed_action_mode: str = "random"  # random | zero — stand stage uses zero to fill buffer with nominal pose
+	eval_interval: int = 0  # closed-loop eval every N iters (single-env only; 0=off)
+	reward_coef: float = 0.1
 
 	# resume
 	resume: bool = False
@@ -53,8 +56,10 @@ class KuavoS42StandTDMPC2RunnerCfg(KuavoS42TDMPC2RunnerCfg):
 	def __post_init__(self):
 		self.obs_profile = "velocity"
 		self.experiment_name = "Kuavo/s42/tdmpc2_stand"
-		self.action_scale = 0.15
-		self.seed_iterations = 30
+		self.seed_iterations = 80
+		self.seed_action_mode = "zero"
+		self.eval_interval = 100
+		self.reward_coef = 0.5
 		self.max_iterations = 3000
 		self.init_at_random_ep_len = False
 
@@ -75,7 +80,6 @@ class KuavoS42VelocityTDMPC2RunnerCfg(KuavoS42TDMPC2RunnerCfg):
 	def __post_init__(self):
 		self.obs_profile = "velocity"
 		self.experiment_name = "Kuavo/s42/tdmpc2_velocity"
-		self.action_scale = 0.20
 		self.seed_iterations = 15
 		self.max_iterations = 5000
 
@@ -96,7 +100,6 @@ class KuavoS42DanceTDMPC2RunnerCfg(KuavoS42TDMPC2RunnerCfg):
 	def __post_init__(self):
 		self.obs_profile = "dance"
 		self.experiment_name = "Kuavo/s42/tdmpc2_dance"
-		self.action_scale = 0.15
 		self.seed_iterations = 25
 		self.max_iterations = 8000
 		self.init_at_random_ep_len = False
@@ -109,7 +112,6 @@ class KuavoS42ArmsOnlyTDMPC2RunnerCfg(KuavoS42DanceTDMPC2RunnerCfg):
 	def __post_init__(self):
 		super().__post_init__()
 		self.experiment_name = "Kuavo/s42/tdmpc2_dance_arms"
-		self.action_scale = 0.15
 		self.max_iterations = 4000
 
 

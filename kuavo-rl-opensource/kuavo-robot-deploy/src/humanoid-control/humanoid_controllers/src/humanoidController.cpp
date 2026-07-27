@@ -360,7 +360,7 @@ namespace humanoid_controller
   }
   void humanoidController::beginPureRlTorqueCrossfade()
   {
-    if (is_real_ || sim_keep_wbc_with_rl_ || kRlTorqueCrossfadeSec <= 0.0)
+    if (is_real_ || sim_keep_wbc_with_rl_ || sim_rl_use_wbc_seed_ || kRlTorqueCrossfadeSec <= 0.0)
     {
       rl_torque_crossfade_active_ = false;
       return;
@@ -373,6 +373,35 @@ namespace humanoid_controller
     rl_torque_crossfade_active_ = true;
     rl_torque_crossfade_start_time_ = ros::Time::now();
   }
+  void humanoidController::initializePureRlSeed(const vector_t &rbd_state)
+  {
+    const int n = static_cast<int>(jointNum_ + jointArmNum_);
+    rl_takeover_seed_actions_.setZero(n);
+    if (is_real_ || sim_keep_wbc_with_rl_ || !sim_rl_use_wbc_seed_ ||
+        wbc_tau_at_rl_takeover_.size() != n || rbd_state.size() < 6 + 2 * n)
+    {
+      return;
+    }
+
+    const Eigen::VectorXd joint_pos = rbd_state.segment(6, n);
+    const Eigen::VectorXd joint_vel = rbd_state.tail(n);
+    for (int i = 0; i < n; ++i)
+    {
+      const double action_denominator = actionScale_ * actionScaleTest_[i];
+      if (jointKp_[i] <= 1e-6 || std::abs(action_denominator) <= 1e-9)
+      {
+        continue;
+      }
+      const double q_des = joint_pos[i] +
+                           (wbc_tau_at_rl_takeover_[i] + jointKd_[i] * joint_vel[i]) / jointKp_[i];
+      rl_takeover_seed_actions_[i] =
+          std::clamp((q_des - rlPdTargetJoint(i)) / action_denominator, -clipActions_, clipActions_);
+    }
+    actions_ = rl_takeover_seed_actions_;
+    ROS_INFO("[RL mode] Pure RL seed from WBC torque: max|seed_action|=%.4f, blend=%.2fs, hold=%d",
+             rl_takeover_seed_actions_.cwiseAbs().maxCoeff(), sim_rl_seed_blend_sec_,
+             static_cast<int>(sim_rl_debug_hold_seed_action_));
+  }
   void humanoidController::finalizeRlWbcHandoff()
   {
     const vector_t rbd = getRobotState();
@@ -384,8 +413,7 @@ namespace humanoid_controller
     jointCmdFilter_.reset();
     {
       std::lock_guard<std::mutex> lock(action_mtx_);
-      actions_.setZero();
-      rl_takeover_seed_actions_.setZero();
+      initializePureRlSeed(rbd);
     }
     const SensorData sd = getRobotSensorData();
     const Eigen::Vector3d g = gravityBodyFromSensor(sd);
@@ -428,8 +456,8 @@ namespace humanoid_controller
       std::lock_guard<std::mutex> lock(action_mtx_);
       actions_.setZero();
       rl_takeover_seed_actions_.setZero();
+      initializePureRlSeed(rbd_state);
     }
-    rl_action_ramp_logged_ = false;
     jointCmdFilter_.reset();
     if (!is_real_ && sim_keep_wbc_with_rl_)
     {
@@ -489,6 +517,10 @@ namespace humanoid_controller
       {
         rl_wbc_handoff_end_time_ = ros::Time::now() + ros::Duration(kRlWbcHoldSec);
       }
+      else
+      {
+        beginPureRlTorqueCrossfade();
+      }
     }
     else
     {
@@ -507,9 +539,10 @@ namespace humanoid_controller
       std::lock_guard<std::mutex> lock(action_mtx_);
       actions_.setZero();
       rl_takeover_seed_actions_.setZero();
+      initializePureRlSeed(rbd_state);
     }
-    ROS_INFO("[RL mode] RL from start: inference on after settle, full policy, no ramp (blend_from_wbc=%d)",
-             static_cast<int>(blend_from_wbc));
+    ROS_INFO("[RL mode] RL from start: inference enabled after spawn settle (blend_from_wbc=%d, seed_to_policy=%.2fs)",
+             static_cast<int>(blend_from_wbc), sim_rl_seed_blend_sec_);
     printRLparam();
   }
   bool humanoidController::init(HybridJointInterface *robot_hw, ros::NodeHandle &controller_nh, bool is_nodelet_node)
@@ -594,9 +627,29 @@ namespace humanoid_controller
     {
       controllerNh_.getParam("/sim_rl_debug_zero_action", sim_rl_debug_zero_action_);
     }
+    if (controllerNh_.hasParam("/sim_rl_debug_hold_seed_action"))
+    {
+      controllerNh_.getParam("/sim_rl_debug_hold_seed_action", sim_rl_debug_hold_seed_action_);
+    }
+    if (controllerNh_.hasParam("/sim_rl_use_wbc_seed"))
+    {
+      controllerNh_.getParam("/sim_rl_use_wbc_seed", sim_rl_use_wbc_seed_);
+    }
+    if (controllerNh_.hasParam("/sim_rl_seed_blend_sec"))
+    {
+      controllerNh_.getParam("/sim_rl_seed_blend_sec", sim_rl_seed_blend_sec_);
+    }
+    if (controllerNh_.hasParam("/sim_rl_spawn_pitch_rad"))
+    {
+      controllerNh_.getParam("/sim_rl_spawn_pitch_rad", sim_rl_spawn_pitch_rad_);
+    }
     if (sim_rl_debug_zero_action_ && !is_real_)
     {
-      ROS_WARN("[RL debug] sim_rl_debug_zero_action=true: policy output forced to 0 (PD hold at defaultJointPos only)");
+      ROS_WARN("[RL debug] sim_rl_debug_zero_action=true: policy and WBC seed forced to 0 (PD hold at defaultJointPos only)");
+    }
+    if (sim_rl_debug_hold_seed_action_ && !is_real_)
+    {
+      ROS_WARN("[RL debug] sim_rl_debug_hold_seed_action=true: holding the WBC-equivalent seed; ONNX output is ignored");
     }
     if (controllerNh_.hasParam("/sim_wbc_rl_action_blend"))
     {
@@ -701,13 +754,14 @@ namespace humanoid_controller
     // Publish before waitForReady: MuJoCo blocks on this param; sensors come only after physics starts.
     if (rl_from_start_ && !is_real_)
     {
-      sim_joint_obs_offset_ = Eigen::VectorXd::Zero(defalutJointPos_.size());
+      // Training observes joint_pos_rel = q - default_joint_pos.
+      sim_joint_obs_offset_.setZero(jointNum_ + jointArmNum_);
       sim_handoff_obs_offset_ = true;
-      ROS_INFO("[RL mode] rl_from_start spawn: obs offset zero (training defaultJointPos)");
+      ROS_INFO("[RL mode] rl_from_start spawn: relative joint observation uses training default pose");
       spawn_centroidal_status_ = initialState_;
       spawn_centroidal_status_.segment(12, jointNum_ + jointArmNum_) = defalutJointPos_;
       spawn_centroidal_status_[8] = kMujocoS49DefaultQpos[2];
-      spawn_centroidal_status_[10] = 0.0;
+      spawn_centroidal_status_[10] = sim_keep_wbc_with_rl_ ? 0.0 : sim_rl_spawn_pitch_rad_;
       spawn_centroidal_status_[11] = 0.0;
     }
     {
@@ -715,10 +769,15 @@ namespace humanoid_controller
       vector_t mujoco_q;
       if (!is_real_)
       {
-        mujoco_q = buildMujocoTrainingStandQpos(drake_template, initialState_, defalutJointPos_);
+        vector_t mujoco_spawn_state = initialState_;
+        if (rl_from_start_ && !sim_keep_wbc_with_rl_)
+        {
+          mujoco_spawn_state(10) = sim_rl_spawn_pitch_rad_;
+        }
+        mujoco_q = buildMujocoTrainingStandQpos(drake_template, mujoco_spawn_state, defalutJointPos_);
         isPreUpdateComplete = true;
         ROS_INFO("[sim] MuJoCo spawn at training default z=%.3f pitch=%.3f — skip squat stand-up",
-                 initialState_(8), initialState_(10));
+                 mujoco_spawn_state(8), mujoco_spawn_state(10));
       }
       else
       {
@@ -1241,14 +1300,9 @@ namespace humanoid_controller
     }
     if (rl_from_start_ && !is_real_ && !is_play_back_mode_)
     {
-      if (!sim_keep_wbc_with_rl_)
-      {
-        activateRlControllerFromStart(false);
-      }
-      else
-      {
-        beginRlSpawnSettle();
-      }
+      // Pure RL still needs a controlled spawn. WBC only stabilizes the initial
+      // pose; control transitions to native RL PD after the settle window.
+      beginRlSpawnSettle();
     }
   }
   void humanoidController::real_init_wait()
@@ -1473,7 +1527,7 @@ namespace humanoid_controller
       {
         rl_spawn_settling_ = false;
         is_rl_controller_ = true;
-        activateRlControllerFromStart(sim_keep_wbc_with_rl_);
+        activateRlControllerFromStart(true);
       }
       t5 = Clock::now();
       // TODO: send the controller command to hardware interface
@@ -1524,6 +1578,8 @@ namespace humanoid_controller
                 : 0.0;
         for (int i1 = 0; i1 < jointNum_ + jointArmNum_; ++i1)
         {
+          // Isaac uses JointPositionAction with use_default_offset=true:
+          // q_des = training default pose + action * scale.
           const double q_des =
               local_action[i1] * actionScale_ * actionScaleTest_[i1] + defalutJointPos_[i1];
           double ff_tau = 0.0;
@@ -1786,21 +1842,31 @@ namespace humanoid_controller
       std::lock_guard<std::mutex> lock(action_mtx_);
       for (int i = 0; i < output_buf_length; ++i)
       {
-        double action = output_buf[i];
+        double policy_action = output_buf[i];
+        double action = policy_action;
         if (rl_wbc_torque_handoff_)
         {
-          action = 0.0;
+          action = rl_takeover_seed_actions_[i];
         }
-        else if (!sim_keep_wbc_with_rl_ && rl_takeover_step_ < kRlActionRampSteps)
+        else if (!is_real_ && !sim_keep_wbc_with_rl_ && sim_rl_use_wbc_seed_)
+        {
+          const double blend_steps = sim_rl_seed_blend_sec_ * inferenceFrequency_;
+          const double policy_weight = sim_rl_debug_hold_seed_action_
+                                           ? 0.0
+                                           : std::min(1.0, static_cast<double>(rl_takeover_step_ + 1) /
+                                                               std::max(1.0, blend_steps));
+          action = (1.0 - policy_weight) * rl_takeover_seed_actions_[i] + policy_weight * policy_action;
+        }
+        else if (!sim_keep_wbc_with_rl_ && !rl_from_start_ && rl_takeover_step_ < kRlActionRampSteps)
         {
           const double t =
               static_cast<double>(rl_takeover_step_ + 1) / static_cast<double>(kRlActionRampSteps);
           const double cap = kRlActionRampMax * t;
-          action = std::clamp(static_cast<double>(output_buf[i]) * t, -cap, cap);
+          action = std::clamp(policy_action * t, -cap, cap);
         }
         else
         {
-          action = output_buf[i];
+          action = policy_action;
         }
         if (sim_rl_debug_zero_action_ && !is_real_)
         {
@@ -1816,8 +1882,9 @@ namespace humanoid_controller
         rl_action_ramp_logged_ = true;
         if (!sim_keep_wbc_with_rl_)
         {
-          ROS_INFO("[RL mode] First RL inference step: max|action|=%.4f (ramp %d steps, crossfade %.0fms)",
-                   actions_.cwiseAbs().maxCoeff(), kRlActionRampSteps, kRlTorqueCrossfadeSec * 1000.0);
+          ROS_INFO("[RL mode] First RL inference step: max|action|=%.4f (seed blend %.2fs, hold_seed=%d, crossfade %.0fms)",
+                   actions_.cwiseAbs().maxCoeff(), sim_rl_seed_blend_sec_,
+                   static_cast<int>(sim_rl_debug_hold_seed_action_), kRlTorqueCrossfadeSec * 1000.0);
         }
         else
         {
@@ -1880,7 +1947,7 @@ namespace humanoid_controller
     {
       jointPos -= sim_joint_obs_offset_;
     }
-    const Eigen::VectorXd &jointVel = sensor_data.jointVel_;
+    Eigen::VectorXd jointVel = sensor_data.jointVel_;
     Eigen::VectorXd jointTorque = sensor_data.jointCurrent_;
     const Eigen::Vector3d &bodyAngVel = sensor_data.angularVel_;
     const Eigen::Vector3d &bodyLineAcc = sensor_data.linearAccel_;

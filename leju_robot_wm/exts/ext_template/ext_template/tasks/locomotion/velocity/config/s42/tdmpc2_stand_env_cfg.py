@@ -38,8 +38,8 @@ class KuavoS42StandTDMPC2EnvCfg(KuavoS42FlatEnvCfg):
 		self.rewards.stand_still_without_cmd.weight = -0.5
 		self.rewards.gravity_aligned_when_stopping.weight = 0.2
 
-		# Smaller actions while learning balance
-		self.actions.joint_pos.scale = 0.15
+		# Match PPO flat env action range (action=0 → default standing pose)
+		self.actions.joint_pos.scale = 0.25
 
 		# Disable domain randomization and pushes for stage 1
 		self.events.physics_material = None
@@ -50,22 +50,31 @@ class KuavoS42StandTDMPC2EnvCfg(KuavoS42FlatEnvCfg):
 		self.events.scale_joint_parameters = None
 		self.events.base_external_force_torque = None
 
-		# Tight reset around nominal standing pose
+		# Nominal spawn: no initial velocity noise (untrained policy cannot recover from perturbations)
 		self.events.reset_base.params = {
-			"pose_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "yaw": (-0.1, 0.1)},
+			"pose_range": {"x": (-0.02, 0.02), "y": (-0.02, 0.02), "yaw": (-0.05, 0.05)},
 			"velocity_range": {
-				"x": (-0.05, 0.05),
-				"y": (-0.05, 0.05),
-				"z": (-0.05, 0.05),
-				"roll": (-0.05, 0.05),
-				"pitch": (-0.05, 0.05),
-				"yaw": (-0.05, 0.05),
+				"x": (0.0, 0.0),
+				"y": (0.0, 0.0),
+				"z": (0.0, 0.0),
+				"roll": (0.0, 0.0),
+				"pitch": (0.0, 0.0),
+				"yaw": (0.0, 0.0),
 			},
 		}
 		self.events.reset_robot_joints.params = {
-			"position_range": (0.98, 1.02),
+			"position_range": (1.0, 1.0),
 			"velocity_range": (0.0, 0.0),
 		}
+
+		# Termination tweaks for stand stage:
+		# - dof_pos_illegal fires when S42 ankle TorchScript yields NaN (illegal
+		#   joint combo). That kills the episode without a visible fall — looks
+		#   like "moved a leg then vanished". Disable for stage-1; actuator still
+		#   zeros NaN torques so sim continues.
+		# - base_contact threshold 1N is tiny (clothing/mesh noise). Use 25N.
+		self.terminations.dof_pos_illegal = None
+		self.terminations.base_contact.params["threshold"] = 25.0
 
 
 @configclass
@@ -74,3 +83,19 @@ class KuavoS42StandTDMPC2EnvCfg_PLAY(KuavoS42StandTDMPC2EnvCfg):
 		super().__post_init__()
 		self.scene.num_envs = 1
 		self.observations.policy.enable_corruption = False
+		# Deterministic nominal spawn for video / eval
+		self.events.reset_base.params = {
+			"pose_range": {"x": (0.0, 0.0), "y": (0.0, 0.0), "yaw": (0.0, 0.0)},
+			"velocity_range": {
+				"x": (0.0, 0.0),
+				"y": (0.0, 0.0),
+				"z": (0.0, 0.0),
+				"roll": (0.0, 0.0),
+				"pitch": (0.0, 0.0),
+				"yaw": (0.0, 0.0),
+			},
+		}
+		self.events.reset_robot_joints.params = {
+			"position_range": (1.0, 1.0),
+			"velocity_range": (0.0, 0.0),
+		}

@@ -22,7 +22,7 @@ Kuavo 4 Pro 二次开发的**过程记录**：环境部署、实机踩坑、终�
 | 手臂与 IK | `motion_capture_ik` · `humanoid_plan_arm_trajectory` · Pinocchio · 示教/标定 | [`9`](./9.IK.md) [`13`](./13.arm_move.md) [`18`](./18.teaching_gravity_compensation.md) [`26`](./26.joint_calibration.md) |
 | 仿真 | Gazebo · MuJoCo **3.0.1** · `humanoid_controllers` 统一 launch | [`1.start`](./1.start.md) [`4.2`](./4.2yolov8_sim.md) [`15.3`](./15.3RL_lab_sim_to_sim.md) |
 | 行走强化学习 | Isaac Sim **4.2** · Isaac Lab **1.4.1** · rsl_rl/PPO · 87 维 obs · ONNX 真机 50Hz | [`15.1`](./15.1.RL_lab_train.md)–[`15.4`](./15.4RL_lab_sim_to_real.md) |
-| 舞蹈强化学习 | S49 · 115 维 obs · mimic CSV · Sim2Sim → 混合真机部署 | [`23.1`](./23.1.RL_dance_overview.md)–[`23.6`](./23.6.RL_dance_terminal_commands.md) |
+| 舞蹈强化学习 | S49 · 115 维 obs · v18 arms-only mimic · Sim2Sim / Hybrid / 纯 RL 对齐 | [`23.2`](./23.2.RL_dance_overview.md) [`23.5`](./23.5.RL_dance_reward_iterate.md) [`23.8`](./23.8.RL_dance_pure_rl_sim2sim_debug.md) |
 | 遗留 Gym RL | Isaac Gym Preview 4 · `kuavo-rl-opensource` beta | [`7.1`](./7.1.gym_RL.md) [`7.2`](./7.2.gym_RL_doc.md) |
 | 世界模型 | TD-MPC2 · `leju_robot_wm` | [`31.1`](./31.1.world_model.md) |
 | 视觉检测 | YOLOv8 · OpenCV/cv_bridge · TF2 · Orbbec/RealSense | [`4.1`](./4.1.visual_grasping_route.md)–[`4.4`](./4.4real_visual_grasp.md) [`6`](./6.visual_grasp.md) |
@@ -124,12 +124,14 @@ Kuavo 4 Pro 二次开发的**过程记录**：环境部署、实机踩坑、终�
 
 | 标记 | 文档 | 说明 |
 |------|------|------|
-| 🟢 | [`23.1.RL_dance_overview.md`](./23.1.RL_dance_overview.md) | S49 舞蹈 RL 总览与分支纪律 |
-| 🟢 | [`23.2.RL_dance_motion_data.md`](./23.2.RL_dance_motion_data.md) | 舞蹈 CSV / 动作数据准备 |
-| 🟢 | [`23.3.RL_dance_train.md`](./23.3.RL_dance_train.md) | S49 训练（115 维 obs、mimic 奖励） |
-| 🟢 | [`23.4.RL_dance_sim2sim.md`](./23.4.RL_dance_sim2sim.md) | MuJoCo 舞蹈验证 |
-| 🔴 | [`23.5.RL_dance_deploy_hybrid.md`](./23.5.RL_dance_deploy_hybrid.md) | 舞蹈真机混合部署 |
-| 🔴 | [`23.6.RL_dance_terminal_commands.md`](./23.6.RL_dance_terminal_commands.md) | 舞蹈终端命令全集 |
+| 🔴 | [`23.1.RL_dance_terminal_commands.md`](./23.1.RL_dance_terminal_commands.md) | 舞蹈终端命令全集 |
+| 🟢 | [`23.2.RL_dance_overview.md`](./23.2.RL_dance_overview.md) | S49 舞蹈 RL 总览与分支纪律 |
+| 🟢 | [`23.3.RL_dance_motion_data.md`](./23.3.RL_dance_motion_data.md) | 舞蹈 CSV / 动作数据准备 |
+| 🟢 | [`23.4.RL_dance_train.md`](./23.4.RL_dance_train.md) | S49 训练（115 维 obs、mimic 奖励） |
+| 🟡 | [`23.5.RL_dance_reward_iterate.md`](./23.5.RL_dance_reward_iterate.md) | 奖励 v1–v18、视频/TensorBoard 调参与 RUN_CONFIG |
+| 🟢 | [`23.6.RL_dance_sim2sim.md`](./23.6.RL_dance_sim2sim.md) | MuJoCo 舞蹈 Sim2Sim |
+| 🔴 | [`23.7.RL_dance_deploy_hybrid.md`](./23.7.RL_dance_deploy_hybrid.md) | 舞蹈 Hybrid WBC+RL 部署 |
+| 🔴 | [`23.8.RL_dance_pure_rl_sim2sim_debug.md`](./23.8.RL_dance_pure_rl_sim2sim_debug.md) | 纯 RL Sim2Sim 对齐、WBC seed 接管（8 处 Bug） |
 
 ### 🟢 世界模型
 
@@ -145,7 +147,7 @@ Kuavo 4 Pro 二次开发的**过程记录**：环境部署、实机踩坑、终�
 | 🔴 | [`19.tremble_rosbag.md`](./19.tremble_rosbag.md) | 抖动 rosbag 排障 |
 | 🟡 | [`25.update.md`](./25.update.md) | 官方包升级与 launch 排障 |
 
-辅助脚本：[`scripts/analyze_r_takeover_bag.py`](./scripts/analyze_r_takeover_bag.py)（RL bag 分析，见 23.5）。
+辅助脚本：[`scripts/analyze_r_takeover_bag.py`](./scripts/analyze_r_takeover_bag.py)（RL bag 分析，见 23.7–23.8）。
 
 ### 📎 官方案例（参考）
 
@@ -157,7 +159,7 @@ Kuavo 4 Pro 二次开发的**过程记录**：环境部署、实机踩坑、终�
 
 | 路径 | 说明 |
 |------|------|
-| [`scripts/analyze_r_takeover_bag.py`](./scripts/analyze_r_takeover_bag.py) | RL bag 分析（23.5） |
+| [`scripts/analyze_r_takeover_bag.py`](./scripts/analyze_r_takeover_bag.py) | RL bag 分析（23.7–23.8） |
 
 ---
 

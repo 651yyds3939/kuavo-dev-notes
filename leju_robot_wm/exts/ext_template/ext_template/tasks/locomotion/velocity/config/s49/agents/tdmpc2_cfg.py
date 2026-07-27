@@ -10,7 +10,7 @@ class KuavoS49TDMPC2RunnerCfg(KuavoS42TDMPC2RunnerCfg):
 	def __post_init__(self):
 		self.obs_profile = "dance"
 		self.experiment_name = "Kuavo/s49/tdmpc2_dance"
-		self.action_scale = 0.30
+		self.action_scale = 1.0
 		self.batch_size = 96
 		self.buffer_size = 200_000
 		self.min_buffer_size = 384

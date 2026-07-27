@@ -33,8 +33,7 @@ from omni.isaac.lab.terrains import TerrainImporterCfg
 from ext_template.terrains import ROUGH_TERRAINS_CFG
 from ext_template.assets.kuavo import Kuavos49_CFG
 
-# v18: arms-only nominal policy：双脚保持接触且静止，腿仅作连续微调，手臂跟踪 CSV
-# v17 已经不摔倒，但学会用小碎步换稳定；v18 直接惩罚脚部运动/离地，并收窄会诱发换脚的域随机化。
+# v15: 纯上半身手臂跟踪 — 砍掉腿部模仿，只练站稳+挥臂，优先拿到可部署版本
 DANCE_CSV = "kuavo_action_S49_FROM_S54_INPLACE_RAD.csv"
 
 # RL 仅控制 26 关节（与 S46 USD / 部署 policy / CSV 顺序一致）
@@ -64,9 +63,9 @@ class MySceneCfg(InteractiveSceneCfg):
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="average",
             restitution_combine_mode="average",
-            static_friction=0.8,
-            dynamic_friction=0.7,
-            restitution=0.0,
+            static_friction=0.4,
+            dynamic_friction=0.4,
+            restitution=0.5,
         ),
         debug_vis=False,
     )
@@ -112,10 +111,10 @@ class ObservationsCfg:
         projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.05, n_max=0.05))
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.3, n_max=0.3))
-        # 当前帧参考：腿部固定站姿，手臂跟踪 CSV。避免 v16 的“观测给腿CSV、奖励要腿固定”冲突。
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
+        # 当前帧参考关节角（相对默认姿态），让策略直接看到手脚目标，而不只靠相位猜
         reference_joint_pos = ObsTerm(
-            func=local_rewards.reference_joint_pos_rel_arms_csv_legs_standing,
+            func=local_rewards.reference_joint_pos_rel,
             params={"csv_path": DANCE_CSV},
         )
         actions = ObsTerm(func=mdp.last_action)
@@ -190,18 +189,18 @@ class RewardsCfg:
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.2)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.08)
-    # v17: 防漂移。v16 关掉 root_xy 后“不原地”，这里用温和锚定，不回到 v15 的 -2.0 强约束。
+    # v15: 防漂移
     base_lin_vel_xy_stationary = RewTerm(
         func=local_rewards.base_lin_vel_xy_l2_stationary,
-        weight=-1.5,
+        weight=-1.0,
     )
     base_ang_vel_yaw_stationary = RewTerm(
         func=local_rewards.base_ang_vel_yaw_l2_stationary,
-        weight=-0.5,
+        weight=-0.3,
     )
     penalty_root_xy_displacement = RewTerm(
         func=local_rewards.penalty_root_xy_displacement,
-        weight=-0.5,
+        weight=-2.0,
     )
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
     dof_power_l2 = RewTerm(func=mdp.joint_power_l2, weight=-2.0e-5)
@@ -216,9 +215,9 @@ class RewardsCfg:
         weight=-1.0e-5,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["leg_[l,r]6_joint"])},
     )
-    # v17: 手臂动作需要自由，但腿部颤抖需要专门阻尼；全局阻尼只小幅提高。
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.006)
-    action_smoothness_l2 = RewTerm(func=mdp.action_smoothness_l2, weight=-0.010)
+    # v15: 中等丝滑度，防止手臂抖动但不压制动作
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.08)
+    action_smoothness_l2 = RewTerm(func=mdp.action_smoothness_l2, weight=-0.04)
 
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
@@ -239,86 +238,32 @@ class RewardsCfg:
             "threshold_max": 0.5
         },
     )
-    # v18: 直接约束脚部运动和离地，针对 v17 的“小碎步”策略。
     feet_slide = RewTerm(
         func=mdp.feet_slide,
-        weight=-0.5,
+        weight=-0.12,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names="leg_[l,r]6_link"),
             "asset_cfg": SceneEntityCfg("robot", body_names="leg_[l,r]6_link"),
         },
     )
-    penalty_feet_motion_l2 = RewTerm(
-        func=local_rewards.penalty_feet_motion_l2,
-        weight=-1.0,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names="leg_[l,r]6_link")},
-    )
-    penalty_feet_airborne = RewTerm(
-        func=local_rewards.penalty_feet_airborne,
-        weight=-2.0,
-        params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names="leg_[l,r]6_link"),
-            "grace_time": 0.04,
-        },
-    )
-    # v17: 髋关节微约束（保持站姿不外撇）
     joint_deviation_hip = RewTerm(
         func=mdp.joint_deviation_l1,
         weight=-0.04,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["leg_[l,r][1,2]_joint"])},
     )
-    # v18: 腿部专用阻尼提高一档，仍远弱于 v15 的硬腿锁，保留低频平衡微调。
-    penalty_leg_joint_vel_l2 = RewTerm(
-        func=local_rewards.penalty_leg_joint_vel_l2,
-        weight=-5.0e-4,
-    )
-    penalty_leg_joint_acc_l2 = RewTerm(
-        func=local_rewards.penalty_leg_joint_acc_l2,
-        weight=-2.0e-7,
-    )
-    # v17: 继续用正向站姿奖励，但收紧 std，腿允许小幅平衡微调而不是跟随 CSV 抖动。
-    track_leg_standing = RewTerm(
-        func=local_rewards.track_leg_standing_upright_exp,
-        weight=8.0,
-        params={
-            "std": 0.20,
-            "min_upright": 0.85,
-            "min_height": 0.72,
-            "target_height": 0.87,
-        },
-    )
-    # v17: 踝关节单独防勾脚。整腿奖励平均 12 个关节，踝误差会被稀释；这里直接把 leg_l5/r5 拉到 -0.30rad。
-    track_ankle_pitch_standing = RewTerm(
-        func=local_rewards.track_ankle_pitch_standing_exp,
-        weight=3.0,
-        params={
-            "std": 0.12,
-            "min_upright": 0.85,
-            "min_height": 0.72,
-            "target_height": 0.87,
-        },
-    )
-    penalty_ankle_pitch_standing_soft = RewTerm(
-        func=local_rewards.penalty_ankle_pitch_standing_soft,
-        weight=-0.5,
-        params={"tolerance": 0.08},
-    )
-    joint_deviation_legs = RewTerm(
-        func=local_rewards.penalty_leg_deviation_standing,
-        weight=0.0,  # 关掉 L1 惩罚，交给上面的正向奖励（教训：正反馈 > 负反馈）
-    )
-    # v17: 稳定性继承 v2（-12/-8/-15 是门控奖励的必要前提）
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-12.0)
+    # v15: 纯上半身 — 中等稳定（不需 v2 极稳，腿部只维持默认站姿不做动作）
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-5.0)
     base_height = RewTerm(
         func=local_rewards.base_height_l2,
-        weight=-8.0,
+        weight=-5.0,
         params={"target_height": 0.87},
     )
     penalty_root_squat = RewTerm(
         func=local_rewards.penalty_root_height_below,
-        weight=-15.0,
-        params={"min_height": 0.72},
+        weight=-8.0,
+        params={"min_height": 0.70},
     )
+    # v15: 纯上半身 — 不需要脚下约束（腿部维持默认站姿，不会有勾脚问题）
     contact_force = RewTerm(
         func=mdp.contact_forces,
         weight=-0.001,
@@ -332,27 +277,27 @@ class RewardsCfg:
     stand_still_without_cmd = RewTerm(func=mdp.stand_still_without_cmd, weight=0.0, params={"command_name": "base_velocity"})
     gravity_aligned_when_stopping = RewTerm(func=mdp.gravity_aligned_when_stopping, weight=0.0, params={"command_name": "base_velocity"})
 
-    # v17: 手臂跟踪 CSV（保持 v16 的权重，先解决腿颤/不原地，不同时加大手臂难度）
+    # v15: 纯上半身 — 手臂跟踪加 upright 门控防躺平刷分
     track_punch_arms = RewTerm(
         func=local_rewards.track_punch_arms_trajectory_upright_exp,
-        weight=12.0,  # v2 值（v15 提到 15.0 导致过度优化手臂而忽略稳定）
+        weight=15.0,
         params={
             "std": 0.38,
             "csv_path": DANCE_CSV,
-            "min_upright": 0.85,  # 从 v15 的 0.75 收紧到 0.85，与腿部门控对齐
+            "min_upright": 0.75,
         },
     )
-    # v17: 腿部 CSV 跟踪保持关闭（腿的目标已经在 observation 中固定为站姿）
+    # v15: 腿部不跟踪 CSV，只维持默认站姿
     track_punch_legs = RewTerm(
         func=local_rewards.track_punch_legs_trajectory_upright_exp,
         weight=0.0,
         params={
             "std": 0.50,
             "csv_path": DANCE_CSV,
-            "min_upright": 0.85,
+            "min_upright": 0.75,
         },
     )
-    # v17: 保持关闭 arm_roll（纯上半身模式让手臂自由运动）
+    # v15: 砍掉 arm_roll —— 纯上半身模式让手臂自由运动
     arm_roll_penalty = RewTerm(
         func=local_rewards.penalty_arm_roll_limit,
         weight=0.0,
@@ -372,58 +317,68 @@ class TerminationsCfg:
 
 @configclass
 class EventCfg:
-    """v18 nominal-policy randomization: enough variation for robustness without teaching stepping."""
+    """Domain Randomization 域随机化：激活全套稳定干扰机制"""
     physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.6, 1.0),
-            "dynamic_friction_range": (0.5, 0.9),
-            "restitution_range": (0.0, 0.05),
-            "num_buckets": 32,
+            "static_friction_range": (0.0, 2.0),
+            "dynamic_friction_range": (0.0, 2.0),
+            "restitution_range": (0.0, 1.0),
+            "num_buckets": 64,
             "make_consistent": True,
         },
     )
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         mode="startup",
-        params={"asset_cfg": SceneEntityCfg("robot", body_names="base_link"), "mass_distribution_params": (-1.0, 1.0), "operation": "add"},
+        params={"asset_cfg": SceneEntityCfg("robot", body_names="base_link"), "mass_distribution_params": (-5.0, 5.0), "operation": "add"},
     )
     scale_link_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         mode="startup",
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=["leg_.*_link", "zarm_.*_link"]), "mass_distribution_params": (0.95, 1.05), "operation": "scale"},
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=["leg_.*_link", "zarm_.*_link"]), "mass_distribution_params": (0.8, 1.2), "operation": "scale"},
     )
     randomize_rigid_body_com = EventTerm(
         func=mdp.randomize_base_body_com,
         mode="startup",
-        params={"asset_cfg": SceneEntityCfg("robot", body_names="base_link"), "com_range": {"x": (-0.02, 0.02), "y": (-0.02, 0.02), "z": (-0.02, 0.02)}},
+        params={"asset_cfg": SceneEntityCfg("robot", body_names="base_link"), "com_range": {"x": (-0.1, 0.1), "y": (-0.1, 0.1), "z": (-0.1, 0.1)}},
     )
     scale_actuator_gains = EventTerm(
         func=mdp.randomize_actuator_gains,
         mode="startup",
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_joint"), "stiffness_distribution_params": (0.95, 1.05), "damping_distribution_params": (0.95, 1.05), "operation": "scale"},
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_joint"), "stiffness_distribution_params": (0.8, 1.2), "damping_distribution_params": (0.8, 1.2), "operation": "scale"},
     )
     scale_joint_parameters = EventTerm(
         func=mdp.randomize_joint_parameters,
         mode="startup",
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_joint"), "friction_distribution_params": (1.0, 1.0), "armature_distribution_params": (0.9, 1.1), "operation": "scale"},
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_joint"), "friction_distribution_params": (1.0, 1.0), "armature_distribution_params": (0.5, 1.5), "operation": "scale"},
     )
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
-            # root_xy 锚定是相对 env_origins，出生点也必须在原点，否则一出生就被奖励拉回中心。
-            "pose_range": {"x": (0.0, 0.0), "y": (0.0, 0.0), "yaw": (-0.2, 0.2)},
-            "velocity_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.05, 0.05), "roll": (-0.05, 0.05), "pitch": (-0.05, 0.05), "yaw": (-0.05, 0.05)},
+            "pose_range": {"x": (-0.1, 0.1), "y": (-0.1, 0.1), "yaw": (-0.3, 0.3)},
+            "velocity_range": {"x": (-0.1, 0.1), "y": (-0.1, 0.1), "z": (-0.1, 0.1), "roll": (-0.1, 0.1), "pitch": (-0.1, 0.1), "yaw": (-0.1, 0.1)},
         },
     )
     reset_robot_joints = EventTerm(
-        func=local_rewards.reset_legs_to_standing,
+        func=mdp.reset_joints_by_scale,
         mode="reset",
+        params={"position_range": (0.95, 1.05), "velocity_range": (0.0, 0.0)},
     )
-    base_external_force_torque = None
+    base_external_force_torque = EventTerm(
+        func=mdp.apply_external_force_torque_stochastic,
+        mode="interval",
+        interval_range_s=(0.0, 0.0),
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="base_link"),
+            "force_range": {"x": (-2500.0, 2500.0), "y": (-2500.0, 2500.0), "z": (-1500.0, 1500.0)},
+            "torque_range": {"x": (-0.0, 0.0), "y": (-0.0, 0.0), "z": (-0.0, 0.0)},
+            "probability": 0.002,
+        },
+    )
 
 
 @configclass
@@ -465,9 +420,11 @@ class KuavoS49PunchEnvCfg_PLAY(KuavoS49PunchEnvCfg):
         super().__post_init__()
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
-        # PLAY 模式只用地平面，不需要粗糙地形生成器（避免引用外部 AWS 资产）
         self.scene.terrain.max_init_terrain_level = None
-        self.scene.terrain.terrain_generator = None
+        if self.scene.terrain.terrain_generator is not None:
+            self.scene.terrain.terrain_generator.num_rows = 5
+            self.scene.terrain.terrain_generator.num_cols = 5
+            self.scene.terrain.terrain_generator.curriculum = False
         self.events.base_external_force_torque = None
         
         # 显存防爆设置

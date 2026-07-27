@@ -283,6 +283,15 @@ class SafeClawController:
 
         return False, service_ever_ok, pos_open, eff_open, last_settled
 
+    def wait_side_settled(
+        self, side: str, timeout: float = 5.0, require_saw_moving: bool = True,
+    ) -> bool:
+        """等待该侧夹爪 state 变为 Reached(2)。"""
+        idx = SIDE_INDEX[side]
+        return self._wait_side_settled(
+            idx, timeout=timeout, require_saw_moving=require_saw_moving,
+        )
+
     def call(
         self,
         pos: List[float],
