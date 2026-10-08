@@ -15,7 +15,7 @@
 
 ### 运行问题解决
 
-在运行中我们可能遇到sdk安装与msgs相关问题，详细解决方案如下：
+在运行中可能遇到sdk安装与msgs相关问题，详细解决方案如下：
 [问题解决](./sdk与msgs常见问题.md)
 
 ## 配置参数
@@ -90,4 +90,3 @@ python3 case_wheel_test_torso_joint.py
 - 真实样机
 - MuJoCo 仿真环境
 - Gazebo 仿真环境
-

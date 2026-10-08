@@ -40,14 +40,14 @@
 
 #### 声明
 
- - ⚠️⚠️⚠️ **注意： 该案例为选配案例, 需要用户自行购买百度扩展板(DK-1A)**
+ - ⚠️⚠️⚠️ **注意： 该案例为选配案例, 需要自行购买百度扩展板(DK-1A)**
 
 #### 百度扩展板介绍
  - 开发板型号:
  EdgeBoard DK-1A
  
  - 开发板简介:
- EdgeBoard DK-1A是EdgeBoard系列的新一代开发板卡，除具有EdgeBoard系列特有的高性能AI推理性能，还提供包括40PIN等丰富的外设接口，方便用户进行产品的快速搭建及开发。
+ EdgeBoard DK-1A是EdgeBoard系列的新一代开发板卡，除具有EdgeBoard系列特有的高性能AI推理性能，还提供包括40PIN等丰富的外设接口，方便进行产品的快速搭建及开发。
 
  - 详细介绍:
  https://ai.baidu.com/ai-doc/HWCE/Vlpxnzrck
@@ -116,7 +116,7 @@ https://ai.baidu.com/ai-doc/HWCE/3lpxo3ayu#%E7%B3%BB%E7%BB%9F%E9%95%9C%E5%83%8F%
 
 `~/~/kuavo_ros_application/src/edgeboard_service`
 
-将`edgeboard_service`功能包复制到自己的ROS工作空间的`src`目录下即可
+将`edgeboard_service`功能包复制到自身的ROS工作空间的`src`目录下即可
 
 ## (三)百度EdgeBoard模型部署
 

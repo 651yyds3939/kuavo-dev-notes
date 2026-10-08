@@ -1,166 +1,421 @@
-# kuavo_notes — 实战文档索引
+# Kuavo 二次开发文档地图
 
-Kuavo 4 Pro 二次开发的**过程记录**：环境部署、实机踩坑、终端命令、完整源码归档。 
-与 [`../kuavo-ros-opensource`](../kuavo-ros-opensource/)、[`../kuavo_ros_application`](../kuavo_ros_application/) 中的魔改代码配套阅读。
+本目录记录 Kuavo 人形机器人二次开发中的环境部署、功能集成、仿真与真机调试、训练实验、失败复盘及源码归档。与下位机 [`kuavo-ros-opensource`](../kuavo-ros-opensource/)、上位机 [`kuavo_ros_application`](../kuavo_ros_application/) 配套阅读。
 
-**标记：** 🟢 无需真机 · 🟡 需真机（单机侧）· 🔴 需真机（双机/全身/部署）。与 [`../README.md`](../README.md)「硬件与阅读门槛」一致。
+**文件编号保留原样，主要反映记录时的时间顺序；不重新编号，也不把编号大小当作技术层级。** 本索引按文档用途和实际关联重组导航，不改动专题正文。
 
----
+截至本次整理，本目录有 **107 份 Markdown**，包含本索引：
 
-## 🛠️ 技术栈
+| 范围 | 数量 | 说明 |
+| --- | ---: | --- |
+| 根目录专题、资源与接口参考 | 58 | 54 份有实质内容，3 份空文档，1 份仅有来源说明；不是 58 个已完成项目 |
+| `5功能案例/` 参考存档 | 48 | 含案例目录及 4 份“敬请期待”占位；部分文件附有本地测试批注 |
+| 本索引 | 1 | 以下为其余 **106 份 Markdown** 提供直接入口 |
 
-本目录 **54 篇笔记** 实际用到的技术汇总如下。终端命令、踩坑与源码见各文档正文；接口速查见 [`接口使用文档.md`](./接口使用文档.md)。
+文档数量、长度不直接等同于原创项目数或完成度；正文中的完整源码还可能包含官方示例、上游实现与本地修改。
 
-**双机分工：** NUC（`192.168.26.1`）跑 ROS Master、OCS2/MPC/WBC、IK/MoveIt、RL ONNX 与 TTS；Orin NX（`192.168.26.12`）跑相机、YOLO、ASR/LLM、Gemini 网关。跨机走 ROS 话题、HTTP `:5000`、UDP `:7000`。
+## 导航
 
-| 领域 | 技术 | 代表笔记 |
-|------|------|----------|
-| 环境部署 | Ubuntu 20.04/22.04 · Docker mpc_wbc **v1.3.0** / IL **v0.6.1** · catkin C++17 · Conda | [`1.start`](./1.start.md) [`8`](./8.imitation_learning.md) |
-| 开发语言 | **C++17**（控制/规划底层） · **Python 3**（ROS 节点、AI、数据采集） · Bash（终端编排） | [`1.start`](./1.start.md) [`2`](./2.first_node.md) |
-| 双机与网络 | 静态 IP · `ROS_MASTER_URI` · SSH/SSHFS · PulseAudio 声卡排障 | [`16`](./16.Internet.md) [`0.1`](./0.1.example.md) |
-| 全身控制 | ROS 1 Noetic · OCS2/MPC · WBC · EtherCAT · `/cmd_vel` · H12Pro | [`17`](./17.h12_remote_control.md) [`15.4`](./15.4RL_lab_sim_to_real.md) [`32.2`](./32.2.face_recognition_traking.md) |
-| 手臂与 IK | `motion_capture_ik` · `humanoid_plan_arm_trajectory` · Pinocchio · 示教/标定 | [`9`](./9.IK.md) [`13`](./13.arm_move.md) [`18`](./18.teaching_gravity_compensation.md) [`26`](./26.joint_calibration.md) |
-| 仿真 | Gazebo · MuJoCo **3.0.1** · `humanoid_controllers` 统一 launch | [`1.start`](./1.start.md) [`4.2`](./4.2yolov8_sim.md) [`15.3`](./15.3RL_lab_sim_to_sim.md) |
-| 行走强化学习 | Isaac Sim **4.2** · Isaac Lab **1.4.1** · rsl_rl/PPO · 87 维 obs · ONNX 真机 50Hz | [`15.1`](./15.1.RL_lab_train.md)–[`15.4`](./15.4RL_lab_sim_to_real.md) |
-| 舞蹈强化学习 | S49 · 115 维 obs · v18 arms-only mimic · Sim2Sim / Hybrid / 纯 RL 对齐 | [`23.2`](./23.2.RL_dance_overview.md) [`23.5`](./23.5.RL_dance_reward_iterate.md) [`23.8`](./23.8.RL_dance_pure_rl_sim2sim_debug.md) |
-| 遗留 Gym RL | Isaac Gym Preview 4 · `kuavo-rl-opensource` beta | [`7.1`](./7.1.gym_RL.md) [`7.2`](./7.2.gym_RL_doc.md) |
-| 世界模型 | TD-MPC2 · `leju_robot_wm` | [`31.1`](./31.1.world_model.md) |
-| 视觉检测 | YOLOv8 · OpenCV/cv_bridge · TF2 · Orbbec/RealSense | [`4.1`](./4.1.visual_grasping_route.md)–[`4.4`](./4.4real_visual_grasp.md) [`6`](./6.visual_grasp.md) |
-| 运动规划抓取 | MoveIt/TRAC-IK/OMPL · OctoMap · 官方 IK 双轨 · LejuClaw | [`28`](./28.moveit_grasping.md) [`34`](./34.two_arm_coordination.md) |
-| 视觉跟随/人脸 | InsightFace · YOLO+PID · Gemini 多模态融合 | [`24.1`](./24.1.visual_tracking.md) [`32.1`](./32.1.face_recognition.md) [`32.2`](./32.2.face_recognition_traking.md) |
-| 导航与建图 | FAST-LIO · Livox Avia/Mid-360 · elevation_mapping · 官方导航栈 | [`3`](./3.map_navigation.md) [`3.1`](./3.1official_navigation.md) [`33`](./33.height_map.md) |
-| 本地大模型语音 | Ollama/Qwen2-7B · Faster-Whisper · VITS · Flask `:5000` | [`21.2`](./21.2.local_AI_large_model.md) |
-| 云端大模型 | Gemini Live API (WSS) · Clash/Proxychains4（禁与 cv2 同进程） | [`21.3`](./21.3.gemini_model.md) |
-| VLA 与模仿学习 | 语音→LLM→YOLO→抓取 · py_trees · MCP · LeRobot ACT | [`22.1`](./22.1VLA_grasping.md)–[`22.4`](./22.4.Lerobot_grasp.md) |
-| 动捕与遥操作 | MediaPipe Pose · Quest VR · 手机 IP Webcam | [`27`](./27.camera_mtion_capture.md) |
-| 数据与排障 | rosbag · LET 数据集 · URDF/`kuavo.json` · Foxglove · 升级/抖动/夹爪 | [`8`](./8.imitation_learning.md) [`19`](./19.tremble_rosbag.md) [`20`](./20.gripper_issue.md) [`25`](./25.update.md) [`999`](./999kuavo_resource.md) |
+- [一、文档类型与阅读规则](#reading-rules)
+- [二、主线、递进与分支总览](#project-map)
+- [三、全部根目录文档：分类与阅读顺序](#document-catalog)
+- [四、独立专题与横向支撑关系](#independent-topics)
+- [五、源码旁文档与原始记录](#source-documents)
+- [六、官方参考案例完整目录](#official-cases)
+- [七、运行边界与索引维护](#maintenance)
 
-> **开源可改：** Demo、SDK、IK、py_trees、MoveIt/OCS2 配置。**闭源二进制：** `hardware_plant`、`humanoid_wbc`、EtherCAT 主站。见 [`0.1.example.md`](./0.1.example.md)。
+<a id="reading-rules"></a>
+## 一、文档类型与阅读规则
 
+| 类型 | 含义 | 阅读重点 |
+| --- | --- | --- |
+| 路线／架构 | 代码地图、方案比较、系统分工 | 用于建立背景；历史判断不自动代表当前能力 |
+| 环境／操作 | 安装、编译、启动、标定、终端清单 | 核对实际机型、版本、主机、权限及启动顺序 |
+| 开发／集成 | 新应用、既有功能重构、多个能力组合 | 关注输入输出、个人改动、模块边界和实现状态 |
+| 算法／训练 | 代码分析、数据准备、训练与奖励迭代 | 区分训练表现、离线结果、跨仿真结果与真机结果 |
+| 调试／复盘 | 故障现象、排查路径、失败方案、修复记录 | 区分观察证据、原因假设和已验证结论 |
+| 资源／参考 | SDK 接口、资料链接、官方案例存档 | 用于查询，不单独计为个人开发项目 |
+| 占位／待整理 | 空文件或只有来源指向 | 保留入口，不宣称已有完整教程或实现 |
 
----
+同一篇可能同时属于多种类型。下表中的状态均为**正文记录所能支持的范围**，不是本次重新进行的硬件验收。
 
-## 📋 全部文档（54 篇，按主题分类）
+递进关系分四种，不能混为一谈：
 
-不含 [`5功能案例/案例目录.md`](./5功能案例/案例目录.md) 内官方改写案例；官方案例见文末。
+1. **功能升级／重构**：例如 `22.1 → 22.2`，主要改变任务编排方式。
+2. **模块复用／系统集成**：例如 `21.3 + 32.1 + 24.1 → 32.2`，组合语音、人脸与跟随能力。
+3. **并行方案／研究分支**：例如几何抓取与 ACT、PPO 与 TD-MPC2，不能简单认定后者覆盖或取代前者。
+4. **推荐阅读顺序**：先读原理、环境或故障记录以理解项目，不等于每次运行都必须启动其中所有模块。
 
-**标记：** 🟢 无需真机 · 🟡 需真机（单机侧）· 🔴 需真机（双机/全身/部署）。与 [`../README.md`](../README.md)「硬件与阅读门槛」一致。
+<a id="project-map"></a>
+## 二、主线、递进与分支总览
 
-### 🟢 概览与入门
+### 2.1 从项目目标选择入口
 
-| 标记 | 文档 | 说明 |
-|------|------|------|
-| 🟢 | [`0.doc.md`](./0.doc.md) | 文档地图与阅读路线 |
-| 🟢 | [`0.1.example.md`](./0.1.example.md) | 开源 / 闭源边界与双机分工 |
-| 🟢 | [`1.start.md`](./1.start.md) | 仿真 / 实机环境部署 |
-| 🟢 | [`2.first_node.md`](./2.first_node.md) | 第一个 ROS 节点 |
-| 🟢 | [`接口使用文档.md`](./接口使用文档.md) | SDK 接口速查 |
-| 🟢 | [`999kuavo_resource.md`](./999kuavo_resource.md) | 资源链接汇总 |
-| 🟢 | [`29decision_tree.md`](./29decision_tree.md) | 决策树 |
+| 方向 | 推荐入口 | 主要递进／集成 | 当前边界 |
+| --- | --- | --- | --- |
+| 视觉抓取与双臂操作 | [28：MoveIt 抓取](./28.moveit_grasping.md)、[34：双臂旋拧](./34.two_arm_coordination.md#ch16) | YOLO/TF2 真机抓取 → MoveIt 适配 → 抓瓶与旋拧任务；34.0 补充瓶盖检测 | 34 拧紧已有实机验证记录，拧松仍在独立标定；默认运行不等于复现已验证参数 |
+| 大模型任务编排 | [22.1：大模型指令驱动抓取](./22.1VLA_grasping.md)、[22.2：行为树](./22.2.tree_VLA_grasp.md)、[22.3：工具桥](./22.3.MCP_VLA_grasp.md) | 本地大模型与语音链路 + 视觉抓取 → 状态机任务编排 → 行为树重构；另开 HTTP 工具调用分支 | 模块式视觉—语言—动作链路，不是训练出的端到端 VLA 大模型；22.3 完整 Agent 接入尚有待办 |
+| 模仿学习与数据流水线 | [8：模仿学习环境](./8.imitation_learning.md)、[22.4：ACT](./22.4.Lerobot_grasp.md) | MoveIt 专家轨迹采集 → LeRobot 数据整理 → ACT 训练 → NUC 推理试测 | 采集、训练及真机试测已有记录，但可靠自主抓瓶未达成，ACT 子线归档 |
+| 强化学习行走与动作跟踪 | [15.1：行走训练](./15.1.RL_lab_train.md)、[23.2：动作跟踪总览](./23.2.RL_dance_overview.md) | 行走训练/Sim2Sim/真机适配 → S49 数据、奖励、部署与控制交接研究 | 行走有带安全保护的真机试测；舞蹈 Hybrid 仿真与纯 RL 对齐必须分开看，不能外推为已完成真机舞蹈 |
+| 多模态交互与头身跟随 | [32.2：融合系统](./32.2.face_recognition_traking.md) | Gemini 语音 + 人脸识别 + 头身跟随；30 是相关的本地 VLM 观察分支 | 主要体现分布式部署和模块集成；本地／云端方案并非全部同时运行 |
+| 动捕、导航与系统支撑 | [27：摄像头动捕](./27.camera_mtion_capture.md)、[33：高程图](./33.height_map.md)、[工程支撑索引](#engineering-support) | 各自有内部迭代，横向复用环境、网络、接口与排障经验 | 不强行并入抓取或 RL 主线；高程图不等于已实现地形闭环行走 |
 
-### 🟡 真机 · 单机侧 — 导航、地图与网络
+### 2.2 核心关联图
 
-| 标记 | 文档 | 说明 |
-|------|------|------|
-| 🟡 | [`3.map_navigation.md`](./3.map_navigation.md) | 地图、FAST_LIO 与 Docker 挂载踩坑 |
-| 🟡 | [`3.1official_navigation.md`](./3.1official_navigation.md) | 官方导航案例集成 |
-| 🟡 | [`16.Internet.md`](./16.Internet.md) | 上下位机网络配置 |
-| 🟡 | [`33.height_map.md`](./33.height_map.md) | Livox + elevation_mapping 高程图 |
+以下只标明文档中有依据的主要关联；“阅读背景”和“实际模块复用”分别标注。
 
-### 🟢 / 🟡 / 🔴 视觉、抓取与 MoveIt
+```text
+视觉抓取
+  4.1 方案背景；4.2 YOLO 仿真 / 6 Mock AprilTag 仿真（并行入门）
+  4.3 真机视觉环境 → 4.4 YOLO + TF2 + 官方 IK 真机抓取
+    ├─ + 21.2 本地大模型部署与语音交互
+    │     → 22.1 大模型指令驱动抓取（状态机）
+    │     → 22.2 抓取任务编排重构（行为树，复用 21.2 模型与语音链路）
+    └─ 28 MoveIt 抓取适配
+         ├─ Classic / OctoMap 回程规划（两种模式）
+         ├─ 22.3 HTTP 工具桥联调（与 22.2 并行）
+         ├─ 22.4 专家采数 → LeRobot → ACT → 真机试测（归档）
+         └─ 34 右手抓瓶 + 左手旋拧 ← 34.0 蓝色瓶盖检测
 
-| 标记 | 文档 | 说明 |
-|------|------|------|
-| 🟢 | [`4.1.visual_grasping_route.md`](./4.1.visual_grasping_route.md) | 视觉抓取路线概览 |
-| 🟢 | [`4.2yolov8_sim.md`](./4.2yolov8_sim.md) | 仿真侧 YOLOv8 |
-| 🟡 | [`4.3.real_robot_yolo_environment.md`](./4.3.real_robot_yolo_environment.md) | 真机 YOLO 环境 |
-| 🔴 | [`4.4real_visual_grasp.md`](./4.4real_visual_grasp.md) | TF2 视觉抓取 |
-| 🔴 | [`6.visual_grasp.md`](./6.visual_grasp.md) | 视觉抓取基础 |
-| 🟡 | [`9.IK.md`](./9.IK.md) | 逆运动学 |
-| 🟡 | [`20.gripper_issue.md`](./20.gripper_issue.md) | 夹爪安全 |
-| 🔴 | [`28.moveit_grasping.md`](./28.moveit_grasping.md) | MoveIt 经典版 / OctoMap 双轨抓取 |
-| 🔴 | [`34.two_arm_coordination.md`](./34.two_arm_coordination.md) | 双臂协同：抓瓶 + 拧盖（MoveIt） |
+多模态交互
+  21.2 本地大模型部署与语音交互 / 21.3 Gemini Live 云端模型接入（并行方案）
+  21.3 + 32.1 人脸识别 + 24.1 头身跟随 → 32.2 融合系统
+  30 本地 VLM 图像观察（相关独立分支，不是 32.2 的必经阶段）
 
-### 🟡 / 🔴 真机 — 全身、手臂与标定
+强化学习
+  7.1 / 7.2 旧 Gym 路线（背景，非 Isaac Lab 必装依赖）
+  15.1 训练 ↔ 15.2 代码分析 → 15.3 Sim2Sim → 15.4 真机适配与试测
+  23.2 总览 → 23.3 数据 → 23.4 训练 → 23.5 奖励迭代 → 23.6 Sim2Sim
+    ├─ 23.7 Hybrid WBC + RL 仿真调试
+    └─ 23.8 纯 RL 对齐与接管实验（仍有稳定性问题）
+  23.1 是跨阶段命令索引；31.1 TD-MPC2 是独立研究分支
 
-| 标记 | 文档 | 说明 |
-|------|------|------|
-| 🔴 | [`10.Tai_Ji.md`](./10.Tai_Ji.md) | 太极全身动作案例 |
-| 🟡 | [`13.arm_move.md`](./13.arm_move.md) | 手臂运动学 / 编舞 |
-| 🔴 | [`14.robot_dance.md`](./14.robot_dance.md) | 机器人舞蹈 |
-| 🔴 | [`18.teaching_gravity_compensation.md`](./18.teaching_gravity_compensation.md) | 示教 / 重力补偿 |
-| 🔴 | [`26.joint_calibration.md`](./26.joint_calibration.md) | 关节标定 |
-| 🟢 / 🟡 | [`27.camera_mtion_capture.md`](./27.camera_mtion_capture.md) | 相机 / 动捕（仿真可跑；真机需 Orin 侧） |
-| 🟢 | [`5.up_down_stair.md`](./5.up_down_stair.md) | 上下楼梯（仿真已测，真机未测） |
+独立专题
+  27 单目动捕：几何映射迭代 + 可选腕部 IK
+  3 自建 FAST-LIO 仿真探索（暂停）；3.1 官方导航栈 → 33 高程图集成
+  10 太极案例解读 → 19 实机故障复盘；其余支撑关系见第四节
+```
 
-### 🟡 / 🔴 真机 — 大模型、VLA、语音与人脸
+**不是简单的“22.1 → 22.2 → 22.3 → 22.4 全覆盖升级链”。** `22.2` 沿用官方 IK 抓取逻辑；`22.3` 复用 MoveIt 抓取作为工具；`22.4` 利用几何专家采集数据，但 ACT 推理不以在线启动 MoveIt、YOLO、语音全部模块为前提。
 
-| 标记 | 文档 | 说明 |
-|------|------|------|
-| 🟡 | [`21.1.connected_AI_large_model.md`](./21.1.connected_AI_large_model.md) | 联网大模型语音 |
-| 🟡 | [`21.2.local_AI_large_model.md`](./21.2.local_AI_large_model.md) | 离线 / 局域网大模型 |
-| 🟡 | [`21.3.gemini_model.md`](./21.3.gemini_model.md) | Gemini 全双工 |
-| 🔴 | [`22.1VLA_grasping.md`](./22.1VLA_grasping.md) | VLA 语音抓取（双机 9 终端） |
-| 🔴 | [`22.2.tree_VLA_grasp.md`](./22.2.tree_VLA_grasp.md) | 行为树版 VLA（`py_trees`） |
-| 🔴 | [`22.3.MCP_VLA_grasp.md`](./22.3.MCP_VLA_grasp.md) | MCP / VLA 抓取 |
-| 🔴 | [`24.1.visual_tracking.md`](./24.1.visual_tracking.md) | 头身协同视觉跟随 |
-| 🟡 | [`30.AI_image_identification.md`](./30.AI_image_identification.md) | VLM 图像触发 |
-| 🟡 | [`32.1.face_recognition.md`](./32.1.face_recognition.md) | 人脸识别 |
-| 🟡 | [`32.2.face_recognition_traking.md`](./32.2.face_recognition_traking.md) | 人脸跟踪融合 |
+<a id="document-catalog"></a>
+## 三、全部根目录文档：分类与阅读顺序
 
-### 🟢 → 🔴 强化学习 · 行走与 Gym
+以下 12 组覆盖根目录除 README 外的 **58 份 Markdown**，每份只在主目录表中归类一次；同一能力的交叉关系在说明中补充。
 
-| 标记 | 文档 | 说明 |
-|------|------|------|
-| 🟢 | [`7.1.gym_RL.md`](./7.1.gym_RL.md) | Gym 版 RL 环境 |
-| 🟢 | [`7.2.gym_RL_doc.md`](./7.2.gym_RL_doc.md) | Gym 版 RL 代码导读 |
-| 🟢 | [`8.imitation_learning.md`](./8.imitation_learning.md) | 模仿学习 / Lerobot |
-| 🟢 | [`15.1.RL_lab_train.md`](./15.1.RL_lab_train.md) | Isaac Lab 行走训练 |
-| 🟢 | [`15.2RL_lab_analysis_code.md`](./15.2RL_lab_analysis_code.md) | 奖励 / 域随机化拆解 |
-| 🟢 | [`15.3RL_lab_sim_to_sim.md`](./15.3RL_lab_sim_to_sim.md) | MuJoCo Sim2Sim |
-| 🔴 | [`15.4RL_lab_sim_to_real.md`](./15.4RL_lab_sim_to_real.md) | 行走 Sim2Real 真机 |
+### A. 平台概览、开发入口与参考资料（6 份）
 
-### 🟢 → 🔴 强化学习 · S49 全身舞
+推荐先读 `0 → 1 → 2`；`0.1` 用于理解早期方案背景，接口和资源按需查阅。
 
-| 标记 | 文档 | 说明 |
-|------|------|------|
-| 🔴 | [`23.1.RL_dance_terminal_commands.md`](./23.1.RL_dance_terminal_commands.md) | 舞蹈终端命令全集 |
-| 🟢 | [`23.2.RL_dance_overview.md`](./23.2.RL_dance_overview.md) | S49 舞蹈 RL 总览与分支纪律 |
-| 🟢 | [`23.3.RL_dance_motion_data.md`](./23.3.RL_dance_motion_data.md) | 舞蹈 CSV / 动作数据准备 |
-| 🟢 | [`23.4.RL_dance_train.md`](./23.4.RL_dance_train.md) | S49 训练（115 维 obs、mimic 奖励） |
-| 🟡 | [`23.5.RL_dance_reward_iterate.md`](./23.5.RL_dance_reward_iterate.md) | 奖励 v1–v18、视频/TensorBoard 调参与 RUN_CONFIG |
-| 🟢 | [`23.6.RL_dance_sim2sim.md`](./23.6.RL_dance_sim2sim.md) | MuJoCo 舞蹈 Sim2Sim |
-| 🔴 | [`23.7.RL_dance_deploy_hybrid.md`](./23.7.RL_dance_deploy_hybrid.md) | 舞蹈 Hybrid WBC+RL 部署 |
-| 🔴 | [`23.8.RL_dance_pure_rl_sim2sim_debug.md`](./23.8.RL_dance_pure_rl_sim2sim_debug.md) | 纯 RL Sim2Sim 对齐、WBC seed 接管（8 处 Bug） |
+| 文档 | 类型 | 内容与定位 | 状态／注意事项 |
+| --- | --- | --- | --- |
+| [0.doc.md](./0.doc.md) | 架构／代码地图 | 按控制、模型、导航、SDK、感知、语音等梳理源码目录 | 是平台包结构导读，不是每个包都已独立开发或测试 |
+| [0.1.example.md](./0.1.example.md) | 历史路线分析 | 早期二次开发可行性、上下位机分工与能力边界判断 | 部分判断已被后续实践更新；MoveIt/OctoMap 能力以 28 等后续记录为准 |
+| [1.start.md](./1.start.md) | 环境／操作 | Docker、ROS 工作空间、仿真与控制栈启动 | 通用起点；镜像和机型参数属于对应时期环境 |
+| [2.first_node.md](./2.first_node.md) | 入门开发 | 第一个 ROS 节点、工程编译与运行 | 基础练习，不独立包装成高级项目 |
+| [接口使用文档.md](./接口使用文档.md) | SDK／接口参考 | 控制、传感器、手臂、末端执行器等接口查询 | 参考资料，不按个人独立开发项目计 |
+| [999kuavo_resource.md](./999kuavo_resource.md) | 资源汇总 | 文档、数据、工具与项目资料入口 | 查询型材料，不是功能实现记录 |
 
-### 🟢 世界模型
+### B. 视觉抓取、MoveIt 与双臂旋拧（8 份）
 
-| 标记 | 文档 | 说明 |
-|------|------|------|
-| 🟢 | [`31.1.world_model.md`](./31.1.world_model.md) | TD-MPC2 / `leju_robot_wm` 实验 |
+阅读主线：`4.1 → 4.3 → 4.4 → 28 → 34`。需要仿真入门时插入 `4.2` 或 `6`；阅读 34 时同时查看 `34.0`。
 
-### 🟡 / 🔴 真机 — 运维、遥控与排障
+| 文档 | 类型 | 内容与递进位置 | 状态／验证范围 |
+| --- | --- | --- | --- |
+| [4.1.visual_grasping_route.md](./4.1.visual_grasping_route.md) | 方案比较 | YOLO 与 AprilTag 等视觉抓取路线的背景 | 概念导读；不代表实现了文中提及的所有方法 |
+| [4.2yolov8_sim.md](./4.2yolov8_sim.md) | 仿真／集成 | YOLO 检测与仿真抓取链路探索 | 仿真侧记录，与真机环境配置分开阅读 |
+| [6.visual_grasp.md](./6.visual_grasp.md) | 仿真 SOP | AprilTag 抓取接口、IK 与 Gazebo 多终端流程 | 使用 Mock 目标发布器，不能当作真实相机 AprilTag 检测验收 |
+| [4.3.real_robot_yolo_environment.md](./4.3.real_robot_yolo_environment.md) | 环境／调试 | Orin 侧相机、YOLO、PyTorch 等依赖与真机部署 | 为 4.4 及后续视觉应用提供环境基础 |
+| [4.4real_visual_grasp.md](./4.4real_visual_grasp.md) | 真机开发／集成 | RGB-D 目标定位、TF2 转换、官方 IK、双臂接口与抓取流程 | 早期几何抓取基线；有关避障须区分预设路径与后续 MoveIt 规划 |
+| [28.moveit_grasping.md](./28.moveit_grasping.md) | 规划适配／调试／源码归档 | TRAC-IK、MoveIt 接口、Classic 与 OctoMap 两种抓取模式 | Classic 保留分段预设运动；OctoMap 分支主要在抓后抬升后的回程启用 OMPL 规划，不等于全程动态避障 |
+| [34.0.YOLO_HSV_Blue_Cap_Detection.md](./34.0.YOLO_HSV_Blue_Cap_Detection.md) | 感知模块开发 | YOLO 瓶身候选 + HSV 蓝盖定位，提供 `/vla/cap_target` | 为 34 提供瓶盖坐标；限定蓝色瓶盖方案，不宣称通用瓶盖位姿估计 |
+| [34.two_arm_coordination.md](./34.two_arm_coordination.md) | 双臂集成／实机标定 | 右手抓瓶保持、左手接近与旋拧、TCP 补偿和方向独立参数 | **先读[第 16 章](./34.two_arm_coordination.md#ch16)**；拧紧有验证记录，拧松待标定；早期 v1.7/v1.8 参数保留作历史 |
 
-| 标记 | 文档 | 说明 |
-|------|------|------|
-| 🟡 | [`17.h12_remote_control.md`](./17.h12_remote_control.md) | H12 遥控器 |
-| 🔴 | [`19.tremble_rosbag.md`](./19.tremble_rosbag.md) | 抖动 rosbag 排障 |
-| 🟡 | [`25.update.md`](./25.update.md) | 官方包升级与 launch 排障 |
+34 的关键阅读边界：已验证拧紧命令与当前代码默认左手落点存在区别，复现应查看第 16 章的显式配置；不能因文件或脚本名含 `unscrew` 就认定已完成可靠拧松。
 
-辅助脚本：[`scripts/analyze_r_takeover_bag.py`](./scripts/analyze_r_takeover_bag.py)（RL bag 分析，见 23.7–23.8）。
+### C. 大模型语音与抓取任务编排（5 份）
 
-### 📎 官方案例（参考）
+本地链路：`21.2 + 4.4 → 22.1 → 22.2`。`21.2` 提供本地大模型部署及 ASR → LLM → TTS 交互基础；`22.1` 将其与视觉抓取集成，`22.2` 复用模型与语音链路，重构抓取任务执行端。工具调用分支：理解 `22.1/22.2` 的任务背景后，结合 `28` 阅读 `22.3`。`21.3` 是 Gemini Live 云端模型接入与语音交互分支，后续用于 `32.2`；不属于 `22.1/22.2` 当前记录的部署依赖。
 
-[`5功能案例/案例目录.md`](./5功能案例/案例目录.md) — 乐聚官方功能案例索引（本仓库未改写）。
+| 文档 | 类型 | 内容与递进位置 | 状态／验证范围 |
+| --- | --- | --- | --- |
+| [21.2.local_AI_large_model.md](./21.2.local_AI_large_model.md) | 本地大模型部署／语音交互 | Ollama/Qwen 本地推理服务、Faster-Whisper、VITS、HTTP TTS 与跨机调用 | 为 22.1/22.2 提供本地 LLM 与语音交互基础；文末模型升级设想不等于已实现 |
+| [21.3.gemini_model.md](./21.3.gemini_model.md) | 云端模型接入／系统集成 | Gemini Live 全双工语音、流式音频、网络与双机部署 | 与 21.2 的本地大模型交互方案并行；后续在 32.2 中组合视觉与身份信息 |
+| [22.1VLA_grasping.md](./22.1VLA_grasping.md) | 综合项目／状态机 | ASR → LLM 指令 → YOLO/TF2 → 官方 IK 抓取 → 语音反馈 | 模块式视觉—语言—动作任务链路；不是端到端 VLA 模型训练 |
+| [22.2.tree_VLA_grasp.md](./22.2.tree_VLA_grasp.md) | 软件重构／行为树 | 将 22.1 抓取流程拆为 py_trees 节点、黑板与作用域管理 | 主要重构任务执行端；复用 21.2 的 LLM/语音链路及 22.1 的感知、官方 IK 接口，不默认具备 28 的 OctoMap 规划能力 |
+| [22.3.MCP_VLA_grasp.md](./22.3.MCP_VLA_grasp.md) | 工具调用／探索分支 | MoveIt 抓取技能、状态遥测、Flask HTTP 工具桥和 MCP 实验入口 | HTTP 桥及左右手测试有联调记录；NUC Python 3.8 路径不是原生 FastMCP 部署，完整语音 Agent 与异常测试仍有待办 |
 
----
+这里的“闭环”需按具体功能理解：一次任务从指令、感知到执行及反馈串联，不自动等于高频视觉伺服，也不等于神经网络端到端联合学习。
 
-## 辅助脚本
+### D. 模仿学习环境与 ACT 抓取分支（2 份）
 
-| 路径 | 说明 |
-|------|------|
-| [`scripts/analyze_r_takeover_bag.py`](./scripts/analyze_r_takeover_bag.py) | RL bag 分析（23.7–23.8） |
+推荐 `8 → 28 的专家抓取背景 → 22.4`。这是“用几何专家生成示范，再学习动作策略”的路线，不是继续往行为树中增加规则。
 
----
+| 文档 | 类型 | 内容与递进位置 | 状态／验证范围 |
+| --- | --- | --- | --- |
+| [8.imitation_learning.md](./8.imitation_learning.md) | 环境／复现／排障 | Kuavo Data Challenge、LeRobot、宿主机推理与 Docker 仿真环境 | 早期模仿学习环境实践；比赛分支、镜像与 22.4 真机实验环境不能直接混用 |
+| [22.4.Lerobot_grasp.md](./22.4.Lerobot_grasp.md) | 数据工程／训练／部署复盘 | 专家轨迹采集、88 条示范与 27,137 帧数据、ACT 50K step 训练、NUC 推理与多轮试测 | 已走到真机开环／闭环试测；可靠抓瓶未达成，子线归档；试测脚本未由 ACT 控制夹爪 |
 
-文档内路径以真机为准：NUC `~/kuavo-ros-opensource`，Orin `~/kuavo_ros_application`。本机可用 `~/kuavo_all` 软链接到 [`kuavo-dev-notes`](../README.md)。
+离线误差、训练步数与数据规模证明流水线进展，不能代替独立测试集评估或真机抓取成功率。`18`、`27` 是相关的数据获取探索，但现有记录不足以认定它们已给 22.4 提供训练数据。
+
+### E. 强化学习行走：旧 Gym 与 Isaac Lab（6 份）
+
+主线 `15.1 ↔ 15.2 → 15.3 → 15.4`；`7.1/7.2` 是另一套旧框架的环境与代码背景，不要求先装完 Gym 再用 Lab。
+
+| 文档 | 类型 | 内容与递进位置 | 状态／验证范围 |
+| --- | --- | --- | --- |
+| [7.1.gym_RL.md](./7.1.gym_RL.md) | 环境／训练复现 | Isaac Gym 与 `kuavo-rl-opensource` 的旧路线 | 与 Isaac Lab 路线分别维护，不能混用资产和启动参数 |
+| [7.2.gym_RL_doc.md](./7.2.gym_RL_doc.md) | 代码分析 | Gym 版环境、策略、训练及部署结构导读 | 解释旧框架，不单独宣称新的控制算法 |
+| [15.1.RL_lab_train.md](./15.1.RL_lab_train.md) | 环境／训练 | Isaac Sim / Isaac Lab 行走策略训练与导出 | 行走主线训练入口 |
+| [15.2RL_lab_analysis_code.md](./15.2RL_lab_analysis_code.md) | 代码／算法分析 | 观测、动作、奖励、域随机化与训练配置 | 与 15.1 对照阅读，理解训练设计而非只复制命令 |
+| [15.3RL_lab_sim_to_sim.md](./15.3RL_lab_sim_to_sim.md) | 跨仿真部署／调试 | ONNX、MuJoCo、模型与关节映射适配 | 行走 Sim2Sim 记录；不是跨任意机型的通用配置 |
+| [15.4RL_lab_sim_to_real.md](./15.4RL_lab_sim_to_real.md) | 真机适配／试测 | 真机资产与版本适配、PD／关节参数、控制切换与安全流程 | 有真机接入和带龙门架／安全保护的试测记录；不据此虚构长期稳定性、无支撑能力或成功率 |
+
+### F. S49 强化学习动作跟踪与部署研究（8 份）
+
+推荐 `23.2 → 23.3 → 23.4 → 23.5 → 23.6`，随后按方案阅读 `23.7` 或 `23.8`；`23.1` 是命令速查，不是技术起点。
+
+| 文档 | 类型 | 内容与递进位置 | 状态／验证范围 |
+| --- | --- | --- | --- |
+| [23.1.RL_dance_terminal_commands.md](./23.1.RL_dance_terminal_commands.md) | 操作／命令索引 | 训练、回放、导出、仿真及部署命令 | 跨阶段速查；使用前先确定 run、机型和控制分支 |
+| [23.2.RL_dance_overview.md](./23.2.RL_dance_overview.md) | 架构／总览 | S49 动作跟踪目标、资产与任务分支 | 先建立任务边界，避免混淆早期全身动作和后期 arms-only |
+| [23.3.RL_dance_motion_data.md](./23.3.RL_dance_motion_data.md) | 数据准备 | CSV、角度单位、关节顺序与动作适配 | 训练数据准备环节，不等于独立完成动捕数据生成 |
+| [23.4.RL_dance_train.md](./23.4.RL_dance_train.md) | 训练／操作 | S49 环境、观测／动作配置、训练与策略导出 | 与当前奖励版本和数据配置配套使用 |
+| [23.5.RL_dance_reward_iterate.md](./23.5.RL_dance_reward_iterate.md) | 实验／奖励迭代 | v1–v18、视频与训练日志对照、RUN_CONFIG 追溯 | v18 为 14 轴手臂跟踪参考、12 轴腿部维持站立；Isaac 中的表现不能直接外推至 MuJoCo 或真机 |
+| [23.6.RL_dance_sim2sim.md](./23.6.RL_dance_sim2sim.md) | 跨仿真适配 | 部署输入、关节映射、模型和控制参数对齐 | Sim2Sim 基础记录；后续残余问题继续见 23.8 |
+| [23.7.RL_dance_deploy_hybrid.md](./23.7.RL_dance_deploy_hybrid.md) | 混合控制／调试 | duck_sit 的 WBC + RL 混合、blend/ramp 与 rosbag 对照 | 有 MuJoCo Hybrid 调试和稳定区间记录；真机初始参数明确包含“未实测”建议，不能写成已完成真机舞蹈 |
+| [23.8.RL_dance_pure_rl_sim2sim_debug.md](./23.8.RL_dance_pure_rl_sim2sim_debug.md) | 对齐／控制交接复盘 | 观测／动作／PD／首帧初始化、等效 WBC seed 与纯 RL 接管实验 | 软件对齐修复与剩余前倾、交接问题并存；不认定已达到纯 RL 真机部署条件 |
+
+**任务版本必须分开看：** duck_sit 的 Hybrid 结果、v18 的 Isaac 站立手臂跟踪、纯 RL MuJoCo 交接实验不是同一项验收结果。
+
+### G. 视觉观察、人脸识别与多模态交互（4 份）
+
+融合路线：先了解 `21.3`，并行阅读 `24.1` 和 `32.1`，再读 `32.2`。`30` 展示另一条本地 VLM 应用路线。
+
+| 文档 | 类型 | 内容与递进位置 | 状态／验证范围 |
+| --- | --- | --- | --- |
+| [24.1.visual_tracking.md](./24.1.visual_tracking.md) | 视觉控制／真机调试 | 从头部目标跟随到头身协同、速度配平与运动使能 | 为 32.2 提供跟随能力背景；不能将软件保护称为绝对防摔保证 |
+| [30.AI_image_identification.md](./30.AI_image_identification.md) | 本地 VLM／系统集成 | YOLO 触发、图像观察、Ollama/MiniCPM-V 与语音输出 | 独立视觉观察分支；其主机分工和 ROS Master 配置须按本篇核对 |
+| [32.1.face_recognition.md](./32.1.face_recognition.md) | 身份感知／交互开发 | InsightFace 人脸特征、身份库与语音交互方案 | 含本地与云端方案演进，提供 32.2 的身份识别能力背景 |
+| [32.2.face_recognition_traking.md](./32.2.face_recognition_traking.md) | 综合系统／跨机集成 | Gemini Live、YOLO 跟踪、InsightFace、头身协同及音频网关整合 | 三类能力的系统融合；重点是进程隔离、代理边界、音频权限和运动开关 |
+
+### H. 示教、单目动捕与遥操作探索（2 份）
+
+`18` 与 `27` 目标相关但方案不同，不能直接画成已经串联的数据生产流水线。
+
+| 文档 | 类型 | 内容与内部递进 | 状态／验证范围 |
+| --- | --- | --- | --- |
+| [18.teaching_gravity_compensation.md](./18.teaching_gravity_compensation.md) | 控制探索／失败复盘／数据录制 | Pinocchio 重力补偿尝试 → 真机接口与控制限制排查 → 零力手动示教、CSV 录制回放 | 主动重力补偿目标未在真机达成；保留可行的录制回放路线，不写成成熟零力悬停控制 |
+| [27.camera_mtion_capture.md](./27.camera_mtion_capture.md) | 感知映射／遥操作开发 | MediaPipe + 手机摄像头；2D → 3D 相对几何映射；绝对坐标 IK 失败后改为几何主干 | 含仿真与真机部署记录；默认关闭 IK，可选 FK 种子辅助的腕部 IK；不宣称 VR、深度或手指扩展均已完成 |
+
+### I. 建图导航与高程感知（3 份）
+
+项目演进是“自建仿真探索 → 采用官方导航栈方案 → 复用定位／点云做高程图”，不代表早期失败方案已经被彻底修复。
+
+| 文档 | 类型 | 内容与递进位置 | 状态／验证范围 |
+| --- | --- | --- | --- |
+| [3.map_navigation.md](./3.map_navigation.md) | 仿真探索／失败复盘 | Gazebo、Livox Avia 仿真、FAST-LIO、工作空间和点云预处理排障 | 自建仿真建图路线最终暂停；正文中的原因分析不在本索引扩大为普遍结论 |
+| [3.1official_navigation.md](./3.1official_navigation.md) | 环境／官方栈集成 | navigation_demo、Livox SDK、定位／move_base、编译冲突和运行流程 | 有部署与运行说明；不额外宣称已完成严格的真机导航性能验收 |
+| [33.height_map.md](./33.height_map.md) | 感知集成／调试 | 复用导航定位、点云和 TF，接入 elevation_mapping／GridMap，比较不同点云模式 | 包含编译、数据链路与显示排障；RViz 配置仍有待办，尚不是地形感知到落足／RL 控制的闭环 |
+
+### J. 独立控制专题与算法研究（4 份）
+
+这些条目可以独立阅读，不强行并入抓取或强化学习动作跟踪的线性升级链。
+
+| 文档 | 类型 | 内容与关联 | 状态／验证范围 |
+| --- | --- | --- | --- |
+| [5.up_down_stair.md](./5.up_down_stair.md) | 步态案例／仿真调试 | 上下楼梯动作与相关控制流程 | 仿真测试记录，真机未测；不等于利用 33 的高程图实现自适应楼梯行走 |
+| [10.Tai_Ji.md](./10.Tai_Ji.md) | 案例解读／动作执行 | 太极离线动作序列、足部与手臂协同接口 | 与 19 的部署排障关联；不是 RL 学习太极 |
+| [13.arm_move.md](./13.arm_move.md) | 原理学习／案例调试 | 手臂关节空间轨迹、笛卡尔接口、插值和正逆运动学 | 官方案例上的学习与实践，不宣称自研通用 IK 或轨迹规划算法 |
+| [31.1.world_model.md](./31.1.world_model.md) | Model-Based RL／实验复盘 | `leju_robot_wm`、TD-MPC2、世界模型训练、零动作基线与失败分析 | stand 尚未稳定达标；stand → walk → dance 是课程计划，不是已经完成的三个阶段；不是 PPO 的后续完成版 |
+
+<a id="engineering-support"></a>
+### K. 网络、遥控、标定、升级与故障支撑（6 份）
+
+这些文档是多个项目横向复用的工程支撑。按具体问题查阅，不必把全部运维动作当作每次运行的固定前置步骤。
+
+| 文档 | 类型 | 支撑范围 | 状态／注意事项 |
+| --- | --- | --- | --- |
+| [16.Internet.md](./16.Internet.md) | 网络／操作 | 静态 IP、ROS 跨机通信与连接配置 | 不同项目时期使用的地址可能不同，以实际配置为准 |
+| [17.h12_remote_control.md](./17.h12_remote_control.md) | 遥控／状态机 | H12 使用、部署、启动和控制状态 | 关联真机启停、行走和 RL 接管；功能随版本核对 |
+| [19.tremble_rosbag.md](./19.tremble_rosbag.md) | 故障复盘／数据诊断 | 太极抖动、仿真异常、总线与 rosbag 排查 | 是 10 的现场问题延伸；不将原因推测当成所有机型的已证实根因 |
+| [20.gripper_issue.md](./20.gripper_issue.md) | 硬件接口／安全调试 | LejuClaw 自锁、标定、反馈状态、限幅与 `claw_safe.py` | 支撑行为树、工具桥和双臂旋拧等；限幅不能代替实体监护 |
+| [25.update.md](./25.update.md) | 版本运维／失败复盘 | 官方包升级、依赖与 launch 兼容问题、回退记录 | 不是建议所有项目直接升到同一最新版 |
+| [26.joint_calibration.md](./26.joint_calibration.md) | 标定／实机操作 | 下肢、手臂、头部零点与限位标定流程 | 文中自动限位标定要求 v1.4+；先确认实际版本和工装，不从 25 的历史命令直接推导可用性 |
+
+### L. 保留中的占位与待整理条目（4 份）
+
+| 文档 | 当前内容 | 处理方式与相关入口 |
+| --- | --- | --- |
+| [9.IK.md](./9.IK.md) | 仅有官方正逆运动学案例来源说明 | 保留待整理；实际接口学习可读 13、28 和官方正逆运动学案例 |
+| [14.robot_dance.md](./14.robot_dance.md) | 空文件 | 保留选题；现有 RL 动作跟踪资料在 23.1–23.8，不代表此篇已补齐 |
+| [21.1.connected_AI_large_model.md](./21.1.connected_AI_large_model.md) | 空文件 | 保留选题；已有本地／云端实践分别见 21.2、21.3 |
+| [29decision_tree.md](./29decision_tree.md) | 空文件 | 保留选题；22.2 的行为树不等于已经完成此篇决策树文档 |
+
+<a id="independent-topics"></a>
+## 四、独立专题与横向支撑关系
+
+“独立”指没有足够依据将其认定为某个综合项目的直接组成阶段，不意味着没有价值。除主线外，其余文档已分别落入独立应用、共享支撑、参考资料或占位类别，没有强行拼接为项目。
+
+| 关系类别 | 文档 | 应当如何理解 |
+| --- | --- | --- |
+| 独立完整专题 | 27 摄像头动捕 | 本身具有感知、几何映射、接口控制和部署迭代，不依赖先做完抓取或 ACT |
+| 独立应用分支 | 30 本地 VLM、5 楼梯、10 太极 | 与其他项目共享平台能力，但没有证据表明都已串入同一个系统 |
+| 独立算法探索 | 31.1 世界模型 | 与 PPO 有背景和资产关联，算法与实验目标分开，失败结果同样保留 |
+| 相关但未证实数据串联 | 18 示教、27 动捕、22.4 ACT、23.3 动作数据 | 可以讨论潜在数据来源；不能声称“摄像头动捕 → ACT/RL 训练”已经跑通 |
+| 明确的部署复盘延伸 | 10 → 19 | 从太极动作接口理解延伸到现场抖动和 rosbag 故障分析 |
+| 横向末端执行器支撑 | 20 → 22.2／22.3／34 | 夹爪状态、限幅与安全工具复用，不应重复计为三个独立夹爪项目 |
+| 条件性版本前置 | 25 与 26 | 升级排障帮助理解兼容性；只有实际需要对应功能时才确认版本要求，不要求盲目升级 |
+| 共用开发与实机底座 | 0、1、2、13、16、17、26、接口参考 | 帮助多个项目建立环境、接口、通信和物理零点，不等于每次运行都执行全部步骤 |
+| 共享定位／点云能力 | 3.1 → 33 | 高程图复用导航感知链；目前没有把高程图反馈给落足规划或 RL 的闭环证据 |
+| 仿真方案比较背景 | 4.1、4.2、6、7.1、7.2、8 | 用来理解方案与环境演进，不能把入门步骤都单列为高阶原创项目 |
+| 资料与选题入口 | 0.1、999、官方案例、9／14／21.1／29 | 明确参考、历史与待整理属性，不用于夸大已完成项目数量 |
+
+<a id="source-documents"></a>
+## 五、源码旁文档与原始记录
+
+源码旁目录 [`src/demo/vla_grasp`](../kuavo-ros-opensource/src/demo/vla_grasp/) 另有 **17 份 Markdown**，不计入前述本目录的 107 份。其中 12 份对应已有专题，5 份为操作手册或原始补充材料。
+
+### 5.1 同一专题的两处文档（12 份）
+
+两处文件是同一主题的材料，不重复计为独立项目，也不保证逐字同步。本索引提供互查入口；当前执行参数仍需结合实际代码、启动日志及正文最新结论确认。
+
+| `kuavo_notes` 专题 | 源码旁对应文档 |
+| --- | --- |
+| [4.3 真机视觉环境](./4.3.real_robot_yolo_environment.md) | [4.3.real_robot_yolo_environment.md](../kuavo-ros-opensource/src/demo/vla_grasp/4.3.real_robot_yolo_environment.md) |
+| [4.4 视觉抓取](./4.4real_visual_grasp.md) | [4.4real_visual_grasp.md](../kuavo-ros-opensource/src/demo/vla_grasp/4.4real_visual_grasp.md) |
+| [20 夹爪调试](./20.gripper_issue.md) | [20.gripper_issue.md](../kuavo-ros-opensource/src/demo/vla_grasp/20.gripper_issue.md) |
+| [21.2 本地大模型部署与语音交互](./21.2.local_AI_large_model.md) | [21.2.local_AI_large_model.md](../kuavo-ros-opensource/src/demo/vla_grasp/21.2.local_AI_large_model.md) |
+| [21.3 Gemini Live 云端模型接入](./21.3.gemini_model.md) | [21.3.gemini_model.md](../kuavo-ros-opensource/src/demo/vla_grasp/21.3.gemini_model.md) |
+| [22.1 大模型指令驱动抓取（状态机）](./22.1VLA_grasping.md) | [22.1VLA_grasping.md](../kuavo-ros-opensource/src/demo/vla_grasp/22.1VLA_grasping.md) |
+| [22.2 行为树](./22.2.tree_VLA_grasp.md) | [22.2.tree_VLA_grasp.md](../kuavo-ros-opensource/src/demo/vla_grasp/22.2.tree_VLA_grasp.md) |
+| [22.3 工具桥](./22.3.MCP_VLA_grasp.md) | [22.3.MCP_VLA_grasp.md](../kuavo-ros-opensource/src/demo/vla_grasp/22.3.MCP_VLA_grasp.md) |
+| [22.4 ACT](./22.4.Lerobot_grasp.md) | [22.4.Lerobot_grasp.md](../kuavo-ros-opensource/src/demo/vla_grasp/22.4.Lerobot_grasp.md) |
+| [28 MoveIt 抓取](./28.moveit_grasping.md) | [28.moveit_grasping.md](../kuavo-ros-opensource/src/demo/vla_grasp/28.moveit_grasping.md) |
+| [34.0 蓝盖检测](./34.0.YOLO_HSV_Blue_Cap_Detection.md) | [YOLO_HSV_Blue_Cap_Detection.md](../kuavo-ros-opensource/src/demo/vla_grasp/YOLO_HSV_Blue_Cap_Detection.md)（不同文件名） |
+| [34 双臂旋拧](./34.two_arm_coordination.md) | [34.two_arm_coordination.md](../kuavo-ros-opensource/src/demo/vla_grasp/34.two_arm_coordination.md) |
+
+### 5.2 操作手册、模块说明与原始补充（5 份）
+
+| 文档 | 定位 | 与正式专题的关系 |
+| --- | --- | --- |
+| [moveit_grasp.md](../kuavo-ros-opensource/src/demo/vla_grasp/moveit_grasp.md) | MoveIt 日常启动 SOP | 快速运行入口；原理、演进和代码归档见 28 |
+| [question.md](../kuavo-ros-opensource/src/demo/vla_grasp/question.md) | 问题—原因—处理原始记录 | 28 的问题追溯补充，须区分历史失败方案 |
+| [123.md](../kuavo-ros-opensource/src/demo/vla_grasp/123.md) | 旋拧参数调试原始材料 | 主要内容已并入 [34 第 16 章](./34.two_arm_coordination.md#ch16)，不以原始旧值覆盖当前结论 |
+| [history.md](../kuavo-ros-opensource/src/demo/vla_grasp/history.md) | 原始实验命令 | 含历史参数和失败尝试，不作为默认运行配置 |
+| [bt/README.md](../kuavo-ros-opensource/src/demo/vla_grasp/bt/README.md) | 行为树模块说明 | 树结构、参数与开发入口；业务背景和迁移说明见 22.2 |
+
+<a id="official-cases"></a>
+## 六、官方参考案例完整目录
+
+`5功能案例/` 是**官方参考案例存档，部分附本地测试批注、解释或路径整理**，不能表述为“完全未改写”，也不等同于个人独立开发成果。
+
+本节覆盖其中全部 **48 份 Markdown**。表中“有完成／半完成／测试批注”只是在标识原文记录，**不作为本次验收结论**；官方演示、示例成功率、支持机型与本地开发成果应分别理解。
+
+### 6.1 总目录（1 份）
+
+| 文档 | 定位 |
+| --- | --- |
+| [案例目录.md](./5功能案例/案例目录.md) | 官方功能案例汇总与查询入口；各独立文件入口见下表 |
+
+### 6.2 通用案例：控制、感知、RL、数据与交互（23 份）
+
+| 文档 | 主题／原文范围 |
+| --- | --- |
+| [1.按键控制躯干逆解6.md](./5功能案例/通用案例/1.按键控制躯干逆解6.md) | 键盘躯干逆解；原文有完成标记 |
+| [2.按键控制手臂末端逆解6.md](./5功能案例/通用案例/2.按键控制手臂末端逆解6.md) | 手臂末端控制与控制权接口；有完成标记 |
+| [3.大模型联网搜索与视觉推理案例.md](./5功能案例/通用案例/3.大模型联网搜索与视觉推理案例.md) | Kimi 语音、视觉与搜索接口参考 |
+| [4.二维码检测使用案例.md](./5功能案例/通用案例/4.二维码检测使用案例.md) | AprilTag 检测与位姿消息参考 |
+| [5.二维码抓取水瓶案例.md](./5功能案例/通用案例/5.二维码抓取水瓶案例.md) | AprilTag + IK 抓瓶参考，不能与 6 的 Mock 仿真混为同一验收 |
+| [6.机器人手臂示教案例.md](./5功能案例/通用案例/6.机器人手臂示教案例.md) | 零力示教、关节记录与播放；有完成标记 |
+| [7.基于人脸识别的简易语音交互案例.md](./5功能案例/通用案例/7.基于人脸识别的简易语音交互案例.md) | 人脸与语音交互参考 |
+| [8.键盘控制案例6.md](./5功能案例/通用案例/8.键盘控制案例6.md) | 运动与手臂键盘控制；有完成标记 |
+| [9.接入豆包实时语音大模型案例.md](./5功能案例/通用案例/9.接入豆包实时语音大模型案例.md) | 豆包实时语音接入参考 |
+| [10.接入deepseek大模型语音交互案例4.md](./5功能案例/通用案例/10.接入deepseek大模型语音交互案例4.md) | ASR、DeepSeek 对话与语音播放参考 |
+| [11.灵巧手手势使用案例3.md](./5功能案例/通用案例/11.灵巧手手势使用案例3.md) | 手势接口；批注为仿真无对应功能、夹爪 Sim2Real 处理中 |
+| [12路径轨迹规划案例6.md](./5功能案例/通用案例/12路径轨迹规划案例6.md) | 固定路径与 MPC 跟踪参考；有完成标记 |
+| [13.落足点规划案例6.md](./5功能案例/通用案例/13.落足点规划案例6.md) | 单步／落足点接口参考；有完成标记 |
+| [14.强化学习案例gym版4.md](./5功能案例/通用案例/14.强化学习案例gym版4.md) | Gym 路线；批注为训练基本完成、未部署 |
+| [15强化学习案例lab版5.md](./5功能案例/通用案例/15强化学习案例lab版5.md) | Isaac Lab 训练、导出与部署参考；有完成标记 |
+| [16.全身打太极动作案例6.md](./5功能案例/通用案例/16.全身打太极动作案例6.md) | 全身动作序列、ROS 接口与安全提醒；有完成标记 |
+| [17.手臂轨迹规划案例6.md](./5功能案例/通用案例/17.手臂轨迹规划案例6.md) | 关节轨迹、插值与规划接口参考；有完成标记 |
+| [18.手臂正逆运动学案例6.md](./5功能案例/通用案例/18.手臂正逆运动学案例6.md) | FK／IK 服务与启动参数参考；有完成标记 |
+| [19.数据采集案例.md](./5功能案例/通用案例/19.数据采集案例.md) | rosbag 录制与回放工具参考 |
+| [20.H12遥控器使用开发案例6.md](./5功能案例/通用案例/20.H12遥控器使用开发案例6.md) | 遥控器部署与状态机参考；有完成标记 |
+| [21.roban2搬箱子案例.md](./5功能案例/通用案例/21.roban2搬箱子案例.md) | 搬箱子示例；批注为尝试过但缺少对应节点 |
+| [22.VR使用开发案例.md](./5功能案例/通用案例/22.VR使用开发案例.md) | Quest3、遥操与数据采集参考，不代表 27 已接入 VR |
+| [23.yolov8目标检测案例6.md](./5功能案例/通用案例/23.yolov8目标检测案例6.md) | 箱子检测、ROS 话题与模型调用参考；有完成标记 |
+
+### 6.3 综合案例（2 份）
+
+| 文档 | 主题／本地批注 |
+| --- | --- |
+| [机器人开源导航案例.md](./5功能案例/综合案例/机器人开源导航案例.md) | 官方导航完整参考；原文“半实现”并保留雷达接入问题批注；个人集成记录见 3／3.1／33 |
+| [策略模块搬箱子案例.md](./5功能案例/综合案例/策略模块搬箱子案例.md) | 官方策略模块参考；批注为测试过、二维码识别遇阻并尝试 YOLO 方案，不直接视为完整搬箱验收 |
+
+### 6.4 拓展案例：模仿学习、腕部相机与 EdgeBoard（7 份）
+
+| 文档 | 主题／原文范围 |
+| --- | --- |
+| [模仿学习使用案例／案例概述.md](./5功能案例/拓展案例/模仿学习使用案例/案例概述.md) | 官方模仿学习案例总览 |
+| [模仿学习使用案例／环境部署.md](./5功能案例/拓展案例/模仿学习使用案例/环境部署.md) | 比赛代码、LeRobot 与环境安装 |
+| [模仿学习使用案例／数据采集.md](./5功能案例/拓展案例/模仿学习使用案例/数据采集.md) | 官方数据采集平台与标定前置参考 |
+| [模仿学习使用案例／使用方法.md](./5功能案例/拓展案例/模仿学习使用案例/使用方法.md) | 数据转换、训练与部署操作参考 |
+| [模仿学习使用案例／仿真使用.md](./5功能案例/拓展案例/模仿学习使用案例/仿真使用.md) | Diffusion Policy／MuJoCo 仿真参考；原文有“半完成”批注 |
+| [手腕相机抓取放置案例.md](./5功能案例/拓展案例/手腕相机抓取放置案例.md) | Max 选配腕部相机、标定与 AprilTag 抓放参考 |
+| [百度EdgeBoard接入机器人案例.md](./5功能案例/拓展案例/百度EdgeBoard接入机器人案例.md) | DK1A 扩展板与 YOLO 接入参考 |
+
+### 6.5 五代机器人案例（14 份）
+
+不同机型参考材料不自动适用于本仓主要开发使用的四代双足平台。
+
+| 文档 | 主题／原文范围 |
+| --- | --- |
+| [Kuavo 5-W 轮臂数据采集案例／拆垛案例.md](./5功能案例/五代案例/Kuavo%205-W%20轮臂数据采集案例/拆垛案例.md) | 轮臂拆垛、采集与标定参考 |
+| [YOLOV8识别及抓取案例.md](./5功能案例/五代案例/YOLOV8识别及抓取案例.md) | 五代视觉抓取参考；原文有“基本完成”批注 |
+| [pytree案例／轮臂组合案例.md](./5功能案例/五代案例/pytree案例/轮臂组合案例.md) | 轮臂行为树综合参考 |
+| [pytree案例／sdk与msgs常见问题.md](./5功能案例/五代案例/pytree案例/sdk与msgs常见问题.md) | SDK 与消息依赖排查 |
+| [pytree案例／case_wheel_test_arm.md](./5功能案例/五代案例/pytree案例/case_wheel_test_arm.md) | Mock AprilTag 目标的手臂轨迹案例 |
+| [pytree案例／case_wheel_test_head.md](./5功能案例/五代案例/pytree案例/case_wheel_test_head.md) | 头部搜索／对准 AprilTag 案例 |
+| [pytree案例／case_wheel_test_move.md](./5功能案例/五代案例/pytree案例/case_wheel_test_move.md) | 底盘移动／AprilTag 目标案例 |
+| [pytree案例／case_wheel_test_torso.md](./5功能案例/五代案例/pytree案例/case_wheel_test_torso.md) | 躯干位姿控制案例 |
+| [pytree案例／case_wheel_test_torso_joint.md](./5功能案例/五代案例/pytree案例/case_wheel_test_torso_joint.md) | 4 关节位置控制案例，发布 `/lb_leg_traj` |
+| [轮臂案例／基础使用.md](./5功能案例/五代案例/轮臂案例/基础使用.md) | 五代轮臂软件、WebSocket 与 xManager 使用参考 |
+| [全身舞蹈动作案例.md](./5功能案例/五代案例/全身舞蹈动作案例.md) | **占位：“敬请期待”**，不能视为已完成内容 |
+| [基于il的物料分拣案例.md](./5功能案例/五代案例/基于il的物料分拣案例.md) | **占位：“敬请期待”** |
+| [扭腰搬箱子案例.md](./5功能案例/五代案例/扭腰搬箱子案例.md) | **占位：“敬请期待”** |
+| [豆包大模型交互案例.md](./5功能案例/五代案例/豆包大模型交互案例.md) | **占位：“敬请期待”** |
+
+配套非 Markdown 资料：[xManager用户手册.pdf](./5功能案例/五代案例/轮臂案例/xManager用户手册.pdf)。
+
+### 6.6 通用轮臂目录（1 份）
+
+| 文档 | 主题／原文范围 |
+| --- | --- |
+| [轮臂案例／基础使用.md](./5功能案例/轮臂案例/基础使用.md) | 另一处轮臂基础使用参考；与五代目录文件分别保留，不合并计为个人项目 |
+
+<a id="maintenance"></a>
+## 七、运行边界与索引维护
+
+### 7.1 读懂材料，不直接照抄历史命令
+
+- **版本先于命令。** 记录涉及四代不同资产版本、S49，以及五代／轮臂参考材料；`ROBOT_VERSION`、URDF/XML、关节顺序、单位、PD 参数、观测／动作定义必须成套核对。15.4 的跨版本适配不是可直接照搬到任意机器人的配置。
+- **不存在全目录统一的 IP、ROS Master 或端口表。** 多数真机项目采用 NUC 执行控制、Orin 处理视觉／交互，但本地模型、音频、Master 的放置随项目而变；以所选方案及实际配置为准。
+- **控制入口互斥。** 状态机、行为树、工具桥、直接抓取和 ACT 不能未经协调同时抢占手臂控制；Classic 与 OctoMap 也按选定模式启动，不把多个版本全部打开。
+- **训练成功不等于部署成功。** Isaac、MuJoCo、带保护真机试测、可靠任务完成分别记录，不以训练 loss、离线 MAE 或官方演示替代本地真机结果。
+- **最新结论与历史记录分开。** 34 优先看第 16 章，23 系列按任务版本交叉核对；文中仍保留的历史参数、早期设想及原因假设不能作为现行统一结论。
+- **真机操作仍需实体安全措施。** 本索引不提供安全认证；软件限幅、超时、状态锁不替代急停、工装、防坠保护及合适的现场监护。涉及清理工作区、覆盖配置、升级或下电的命令须先确认目标与影响。
+
+### 7.2 辅助工具与通用知识库
+
+| 入口 | 用途 |
+| --- | --- |
+| [scripts/analyze_r_takeover_bag.py](./scripts/analyze_r_takeover_bag.py) | 23.7／23.8 的 RL 接管 rosbag 分析辅助脚本 |
+| [仓库根 README](../README.md) | 整体仓库构成、代码与项目入口 |
+| [robotics-notes 系统知识图谱](https://github.com/651yyds3939/robotics-notes/blob/master/robot_system.md) | 通用机器人知识体系；与本目录的具体项目记录分工不同 |
+
+### 7.3 后续新增与更新规则
+
+保留现有文件名和编号。新材料先确定属于“主线阶段、并行分支、独立专题、共享支撑、参考或占位”，再补充到对应目录；只有实际发生功能复用或集成时才新增依赖箭头。
+
+每次更新至少记录：实现目标、实际使用版本、对应代码、已验证范围、尚未完成项。若存在源码旁同主题文档，同时核对两处进度；不直接以文件长短或编号大小判断哪一份更新，也不自动覆盖另一份。

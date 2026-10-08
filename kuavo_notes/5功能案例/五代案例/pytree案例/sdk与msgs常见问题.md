@@ -4,7 +4,7 @@ title: "sdk 与 msgs 常见问题"
 # sdk 与 msgs 常见问题
 
 ## 问题描述
- 在使用pytree案例时，我们有可能会遇到msgs包找不到与sdk安装的相关的问题，如下图所示。
+ 在使用pytree案例时，有可能会遇到msgs包找不到与sdk安装的相关的问题，如下图所示。
 
 
 ![img](./img/sdk.png)

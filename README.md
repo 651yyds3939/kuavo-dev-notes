@@ -122,7 +122,7 @@ git lfs pull   # 若 pull 后新增了 LFS 大文件，建议执行
 
 ## 📚 核心知识库目录 (Documentation)
 
-完整索引见 [`kuavo_notes/README.md`](./kuavo_notes/README.md)。下列为 **54 篇**根目录 `.md` 的分类索引（不含 [`5功能案例/`](./kuavo_notes/5功能案例/案例目录.md) 内官方案例）。
+完整索引见 [`kuavo_notes/README.md`](./kuavo_notes/README.md)。下列为 `kuavo_notes/` 中 **58 个专题与资源 Markdown 文件**的分类索引（包含待补充条目，不含索引自身）（不含 [`5功能案例/`](./kuavo_notes/5功能案例/案例目录.md) 内官方案例）。
 
 **标记：** 🟢 无需真机 · 🟡 需真机（单机侧：NUC 或 Orin 任一侧）· 🔴 需真机（双机协同或全身/部署）。Orin/NUC 均为整机算力，详见 [本 README「硬件与阅读门槛」](./README.md#硬件与阅读门槛)。
 
@@ -183,6 +183,7 @@ git lfs pull   # 若 pull 后新增了 LFS 大文件，建议执行
 | 🔴 | [`22.1VLA_grasping.md`](./kuavo_notes/22.1VLA_grasping.md) | VLA 语音抓取（双机 9 终端） |
 | 🔴 | [`22.2.tree_VLA_grasp.md`](./kuavo_notes/22.2.tree_VLA_grasp.md) | 行为树版 VLA（`py_trees`） |
 | 🔴 | [`22.3.MCP_VLA_grasp.md`](./kuavo_notes/22.3.MCP_VLA_grasp.md) | MCP / VLA 抓取 |
+| 🔴 | [`22.4.Lerobot_grasp.md`](./kuavo_notes/22.4.Lerobot_grasp.md) | ACT 数据、训练、NUC 部署与真机试测；精抓未达标，子线归档 |
 | 🔴 | [`24.1.visual_tracking.md`](./kuavo_notes/24.1.visual_tracking.md) | 头身协同视觉跟随 |
 | 🟡 | [`30.AI_image_identification.md`](./kuavo_notes/30.AI_image_identification.md) | VLM 图像触发 |
 | 🟡 | [`32.1.face_recognition.md`](./kuavo_notes/32.1.face_recognition.md) | 人脸识别 |
@@ -341,4 +342,3 @@ kuavo-dev-notes/
 | RL 部署 | https://gitee.com/leju-robot/kuavo-rl-opensource |
 
 ---
-
